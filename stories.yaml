@@ -246,7 +246,7 @@
     - create without required fields shows error
     - created contact visible in Google Contacts web UI
     - output shows contact ID
-  passes: false
+  passes: true
 
 - id: US-00006
   title: "google-contacts: Search contacts command"
