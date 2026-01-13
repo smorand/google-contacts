@@ -129,10 +129,50 @@ c123456789       John Doe              +33612345678     Acme Inc         john@ac
 c987654321       John Smith            +33698765432     Tech Corp        john@tech.com
 ```
 
-### Show Contact Details (Coming Soon)
+### Show Contact Details
+
+Display full information for a specific contact:
 
 ```bash
+# Show by contact ID
 google-contacts show c123456789
+
+# Show by full resource name
+google-contacts show people/c123456789
+```
+
+**Output includes:**
+- Full name (first and last)
+- All phone numbers with labels (mobile, work, home, etc.)
+- All email addresses with labels
+- Company and position
+- Notes
+- Google Contact ID
+- Last update time
+
+**Example output:**
+```
+Contact Details
+────────────────────────────────────────
+
+  Name: John Doe
+    First: John
+    Last: Doe
+  ID: c123456789
+
+  Phones:
+    • +33612345678 (mobile)
+    • +33145678901 (work)
+  Email: john@acme.com (work)
+
+  Company: Acme Inc
+  Position: CTO
+
+  Notes:
+    Met at conference 2025
+    Follow up about partnership
+
+  Updated: 2026-01-14 10:30:00
 ```
 
 ## Project Structure
