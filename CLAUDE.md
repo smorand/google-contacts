@@ -25,8 +25,8 @@ google-contacts/
 ├── internal/
 │   ├── cli/
 │   │   └── cli.go            # CLI commands and flags
-│   └── contacts/             # (future) People API service
-│       └── service.go
+│   └── contacts/
+│       └── service.go        # People API service wrapper
 └── pkg/
     └── auth/
         └── auth.go           # OAuth2 authentication (duplicated from email-manager)
