@@ -403,3 +403,69 @@ All acceptance criteria were already met:
 - Good practice to update comments as part of feature implementation, not just in documentation stories
 
 ---
+
+## 2026-01-14 - US-00009 - google-contacts: Unit tests
+
+**Status:** Completed successfully
+
+### What was implemented
+Implemented unit tests for core CLI and service functionality without requiring network calls.
+
+**Test files created:**
+- `internal/cli/cli_test.go` - Tests for CLI utility functions
+- `internal/contacts/service_test.go` - Tests for service types and validation
+
+### Files changed
+- **Created:**
+  - `internal/cli/cli_test.go` - CLI utility function tests
+  - `internal/contacts/service_test.go` - Service type and validation tests
+- **Modified:**
+  - `CLAUDE.md` - Added comprehensive testing documentation with patterns and guidelines
+  - `README.md` - Added testing section with commands and test file locations
+
+### Test coverage
+
+**CLI tests (`internal/cli/cli_test.go`):**
+- `TestExtractID` - Resource name to ID extraction
+- `TestTruncate` - String truncation for table display
+- `TestFormatTime` - ISO 8601 timestamp formatting
+- `TestValidateRequiredFlags` - Create command field validation
+
+**Service tests (`internal/contacts/service_test.go`):**
+- `TestExtractID` - Resource name parsing
+- `TestContactInput_Validation` - ContactInput struct validation
+- `TestSearchResult_Fields` - SearchResult struct field access
+- `TestContactDetails_PhoneEntries` - Multiple phone/email entries
+- `TestPhoneEntry_EmptyType` - Default type handling
+- `TestEmailEntry_EmptyType` - Default type handling
+- `TestCreatedContact_Fields` - CreatedContact struct
+- `TestResourceNameNormalization` - Resource name prefix logic
+
+### Learnings
+
+**Table-driven tests pattern:**
+- Use `[]struct{ name string; input; expected }` for comprehensive test cases
+- `t.Run(tc.name, func(t *testing.T) {...})` provides clear test output
+- Makes adding new test cases trivial - just add to the slice
+
+**Testing without API calls:**
+- Extract pure functions (like `extractID`, `truncate`, `formatTime`) for easy testing
+- Create validation helper functions in test files to test business logic
+- Test struct field access to ensure type definitions are correct
+
+**Boundary condition testing:**
+- Test edge cases: empty strings, exact length matches, boundary values
+- The `extractID` function uses `len(resourceName) > 7` not `>= 7`
+- "people/" (exactly 7 chars) doesn't get stripped - test exposed this behavior
+
+**Duplicate functions:**
+- Both `cli.go` and `service.go` have `extractID()` functions
+- Tests exist for both to ensure consistent behavior
+- Consider refactoring to a shared utility if project grows
+
+**Test file placement:**
+- Go convention: `*_test.go` in same package as code being tested
+- Tests have access to unexported functions in the same package
+- `make test` runs `go test -v ./...` to find all test files
+
+---
