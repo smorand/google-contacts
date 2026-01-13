@@ -305,3 +305,61 @@ Implemented the 'search' command to find contacts by name, phone, email, or comp
 - GetContact accepts both full resource name and just the ID
 
 ---
+
+## 2026-01-14 - US-00007 - google-contacts: Show contact details command
+
+**Status:** Completed successfully
+
+### What was implemented
+Implemented the 'show' command to display full contact details by ID, including all phone numbers, all email addresses with their type labels, and metadata.
+
+**Features:**
+- Accepts both full resource name (`people/c123456789`) and just the ID (`c123456789`)
+- Displays first and last name breakdown under display name
+- Shows all phone numbers with type labels (mobile, work, home, etc.)
+- Shows all email addresses with type labels
+- Displays company and position
+- Handles multiline notes with proper indentation
+- Shows last update timestamp from metadata
+
+### Files changed
+- **Modified:**
+  - `internal/cli/cli.go` - Added showCmd, runShow handler, displayFullContactDetails(), formatTime()
+  - `internal/contacts/service.go` - Added ContactDetails, PhoneEntry, EmailEntry types and GetContactDetails() method
+  - `CLAUDE.md` - Updated with show command patterns and ContactDetails documentation
+  - `README.md` - Added show command usage documentation with example output
+
+### Learnings
+
+**Multiple entries display pattern:**
+- When displaying lists (phones, emails), check if single or multiple
+- Single item: inline format `Phone: +33... (mobile)`
+- Multiple items: list format with bullet points
+- Use `•` (Unicode bullet) for clean list formatting
+
+**ContactDetails vs SearchResult:**
+- `SearchResult` - First phone/email only, used for search results and tables
+- `ContactDetails` - All phones/emails with labels, used for detailed view
+- Separate types allow different use cases without bloating the simpler struct
+
+**People API Metadata:**
+- `p.Metadata.Sources` contains array of source objects
+- Filter by `source.Type == "CONTACT"` for user-created contacts
+- `source.UpdateTime` is in ISO 8601 format: "2026-01-14T10:30:00.123456Z"
+- CreatedTime is not directly available; UpdateTime reflects last modification
+
+**Phone/Email type labels:**
+- Google People API uses `Type` field for labels
+- Common types: "mobile", "work", "home", "other"
+- Empty type should default to "other" for display consistency
+
+**ISO 8601 timestamp formatting:**
+- Simple string slicing works well for display: `date[:10]` for date, `time[11:19]` for time
+- Avoids complex time parsing when you just need human-readable output
+- Format example: "2026-01-14 10:30:00"
+
+**Cobra command args validation:**
+- Use `Args: cobra.ExactArgs(1)` for required positional argument
+- Provides automatic error message: "Error: accepts 1 arg(s), received 0"
+
+---
