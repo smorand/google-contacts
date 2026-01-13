@@ -207,3 +207,49 @@ Implemented Google People API service wrapper in `internal/contacts/service.go`:
 - This confirms authentication works without returning large amounts of data
 
 ---
+
+## 2026-01-14 - US-00005 - google-contacts: Create contact command
+
+**Status:** Completed successfully
+
+### What was implemented
+Implemented the 'create' command to add new contacts to Google Contacts via People API.
+
+**Features:**
+- Required fields: firstname (-f), lastname (-l), phone (-p)
+- Optional fields: company (-c), position (-r), email (-e), notes (-n)
+- Colorized output with contact ID on success
+- Proper validation of required fields before API call
+
+### Files changed
+- **Modified:**
+  - `internal/cli/cli.go` - Added createCmd with flags and runCreate handler
+  - `internal/contacts/service.go` - Added ContactInput, CreatedContact types and CreateContact() method
+  - `go.mod` / `go.sum` - Added fatih/color dependency
+  - `CLAUDE.md` - Updated with create command patterns and API reference
+  - `README.md` - Added create command usage documentation
+
+### Learnings
+
+**People API CreateContact pattern:**
+- Use `srv.People.CreateContact(person).PersonFields(...).Context(ctx).Do()`
+- PersonFields is required to get data back in the response
+- Returns `*people.Person` with ResourceName (e.g., "people/c123456789")
+
+**Go People API types:**
+- `people.Name` - Uses `GivenName` (not FirstName) and `FamilyName` (not LastName)
+- `people.PhoneNumber` - Has `Value` for the number and `Type` for label (mobile, work, home)
+- `people.Organization` - `Name` is company, `Title` is job position
+- `people.Biography` - `Value` for text, `ContentType` for format ("TEXT_PLAIN")
+
+**Cobra flags pattern:**
+- Use `StringVarP` for flags with both long and short names
+- Flags are stored in package-level variables for access in RunE function
+- Manual validation preferred over `MarkFlagRequired` for clearer error messages
+
+**Color output:**
+- `github.com/fatih/color` provides cross-platform terminal colors
+- Use `color.New(color.FgGreen).SprintFunc()` to create colored string formatters
+- Colors are automatically disabled when output is piped
+
+---
