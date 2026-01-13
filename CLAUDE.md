@@ -46,7 +46,7 @@ google-contacts/
 ```
 google-contacts
 ├── create               # Create new contact (implemented)
-├── search               # Search contacts (planned)
+├── search               # Search contacts (implemented)
 ├── show                 # Show contact details (planned)
 └── version              # Print version
 ```
@@ -186,6 +186,8 @@ The `internal/contacts/service.go` provides:
 - `GetPeopleService(ctx)` - Returns authenticated `*Service` wrapper
 - `(*Service).TestConnection(ctx)` - Verifies API connectivity
 - `(*Service).CreateContact(ctx, input)` - Creates a new contact
+- `(*Service).SearchContacts(ctx, query)` - Searches contacts by name, phone, email, company
+- `(*Service).GetContact(ctx, resourceName)` - Retrieves a single contact by ID
 
 The `Service` struct embeds `*people.Service` for full People API access.
 
@@ -250,3 +252,32 @@ created, err := srv.People.CreateContact(person).
 **Biography (notes):**
 - `Value` - The note text
 - `ContentType` - "TEXT_PLAIN" or "TEXT_HTML"
+
+**Searching contacts:**
+```go
+// SearchContacts searches by name, phone, email, company
+results, err := srv.SearchContacts(ctx, "John")
+
+// SearchResult contains contact summary
+type SearchResult struct {
+    ResourceName string  // e.g., "people/c123456789"
+    DisplayName  string  // e.g., "John Doe"
+    Phone        string  // First phone number
+    Email        string  // First email address
+    Company      string  // Company name
+    Position     string  // Job title
+    Notes        string  // Biography text
+}
+```
+
+**Search API warmup:**
+- People API recommends sending a warmup request with empty query before actual search
+- This updates the search cache for better results
+- The `SearchContacts` method handles this automatically
+
+**GetContact for single contact:**
+```go
+// Get by full resource name or just the ID
+contact, err := srv.GetContact(ctx, "people/c123456789")
+contact, err := srv.GetContact(ctx, "c123456789")  // ID only also works
+```
