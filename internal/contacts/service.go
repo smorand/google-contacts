@@ -74,6 +74,33 @@ type SearchResult struct {
 	Notes        string
 }
 
+// PhoneEntry represents a phone number with its label.
+type PhoneEntry struct {
+	Value string
+	Type  string // mobile, work, home, etc.
+}
+
+// EmailEntry represents an email address with its label.
+type EmailEntry struct {
+	Value string
+	Type  string // work, home, etc.
+}
+
+// ContactDetails contains full information for a single contact.
+type ContactDetails struct {
+	ResourceName string
+	FirstName    string
+	LastName     string
+	DisplayName  string
+	Phones       []PhoneEntry
+	Emails       []EmailEntry
+	Company      string
+	Position     string
+	Notes        string
+	CreatedAt    string
+	UpdatedAt    string
+}
+
 // extractID extracts the contact ID from a resource name (e.g., "people/c123" -> "c123")
 func extractID(resourceName string) string {
 	if len(resourceName) > 7 && resourceName[:7] == "people/" {
@@ -262,4 +289,83 @@ func (s *Service) GetContact(ctx context.Context, resourceName string) (*SearchR
 	}
 
 	return result, nil
+}
+
+// GetContactDetails retrieves full details for a single contact by its resource name.
+// The resourceName can be a full path (e.g., "people/c123") or just the ID (e.g., "c123").
+// Returns all available fields including all phones, all emails with labels, and metadata.
+func (s *Service) GetContactDetails(ctx context.Context, resourceName string) (*ContactDetails, error) {
+	// Normalize resource name
+	if len(resourceName) > 0 && resourceName[0] != 'p' {
+		resourceName = "people/" + resourceName
+	}
+
+	p, err := s.People.Get(resourceName).
+		PersonFields("names,phoneNumbers,emailAddresses,organizations,biographies,metadata").
+		Context(ctx).
+		Do()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get contact: %w", err)
+	}
+
+	details := &ContactDetails{
+		ResourceName: p.ResourceName,
+	}
+
+	// Extract names
+	if len(p.Names) > 0 {
+		name := p.Names[0]
+		details.FirstName = name.GivenName
+		details.LastName = name.FamilyName
+		details.DisplayName = name.DisplayName
+	}
+
+	// Extract all phone numbers with labels
+	for _, phone := range p.PhoneNumbers {
+		entry := PhoneEntry{
+			Value: phone.Value,
+			Type:  phone.Type,
+		}
+		if entry.Type == "" {
+			entry.Type = "other"
+		}
+		details.Phones = append(details.Phones, entry)
+	}
+
+	// Extract all email addresses with labels
+	for _, email := range p.EmailAddresses {
+		entry := EmailEntry{
+			Value: email.Value,
+			Type:  email.Type,
+		}
+		if entry.Type == "" {
+			entry.Type = "other"
+		}
+		details.Emails = append(details.Emails, entry)
+	}
+
+	// Extract company and position
+	if len(p.Organizations) > 0 {
+		org := p.Organizations[0]
+		details.Company = org.Name
+		details.Position = org.Title
+	}
+
+	// Extract notes
+	if len(p.Biographies) > 0 {
+		details.Notes = p.Biographies[0].Value
+	}
+
+	// Extract metadata (creation/update times)
+	if p.Metadata != nil {
+		for _, source := range p.Metadata.Sources {
+			if source.Type == "CONTACT" {
+				if source.UpdateTime != "" {
+					details.UpdatedAt = source.UpdateTime
+				}
+			}
+		}
+	}
+
+	return details, nil
 }

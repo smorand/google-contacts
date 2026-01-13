@@ -47,7 +47,7 @@ google-contacts/
 google-contacts
 ├── create               # Create new contact (implemented)
 ├── search               # Search contacts (implemented)
-├── show                 # Show contact details (planned)
+├── show                 # Show contact details (implemented)
 └── version              # Print version
 ```
 
@@ -187,7 +187,8 @@ The `internal/contacts/service.go` provides:
 - `(*Service).TestConnection(ctx)` - Verifies API connectivity
 - `(*Service).CreateContact(ctx, input)` - Creates a new contact
 - `(*Service).SearchContacts(ctx, query)` - Searches contacts by name, phone, email, company
-- `(*Service).GetContact(ctx, resourceName)` - Retrieves a single contact by ID
+- `(*Service).GetContact(ctx, resourceName)` - Retrieves a single contact by ID (basic info)
+- `(*Service).GetContactDetails(ctx, resourceName)` - Retrieves full contact details with all phones, emails, and metadata
 
 The `Service` struct embeds `*people.Service` for full People API access.
 
@@ -281,3 +282,40 @@ type SearchResult struct {
 contact, err := srv.GetContact(ctx, "people/c123456789")
 contact, err := srv.GetContact(ctx, "c123456789")  // ID only also works
 ```
+
+**GetContactDetails for full information:**
+```go
+// GetContactDetails returns all phones, emails with labels, and metadata
+details, err := srv.GetContactDetails(ctx, "c123456789")
+
+// ContactDetails contains complete contact information
+type ContactDetails struct {
+    ResourceName string
+    FirstName    string
+    LastName     string
+    DisplayName  string
+    Phones       []PhoneEntry  // All phones with labels
+    Emails       []EmailEntry  // All emails with labels
+    Company      string
+    Position     string
+    Notes        string
+    CreatedAt    string
+    UpdatedAt    string
+}
+
+// PhoneEntry and EmailEntry include type labels
+type PhoneEntry struct {
+    Value string  // e.g., "+33612345678"
+    Type  string  // e.g., "mobile", "work", "home"
+}
+type EmailEntry struct {
+    Value string  // e.g., "john@acme.com"
+    Type  string  // e.g., "work", "home"
+}
+```
+
+**People API metadata:**
+- Metadata contains source information including creation/update times
+- Access via `p.Metadata.Sources` array
+- Filter by `source.Type == "CONTACT"` for user contacts
+- `source.UpdateTime` contains the last modification timestamp in ISO 8601 format
