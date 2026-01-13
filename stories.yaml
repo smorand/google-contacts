@@ -289,7 +289,7 @@
     - single result displays full info
     - multiple results display summary list
     - no results shows appropriate message
-  passes: false
+  passes: true
 
 - id: US-00007
   title: "google-contacts: Show contact details command"
