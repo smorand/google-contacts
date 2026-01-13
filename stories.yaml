@@ -203,7 +203,7 @@
     - make build succeeds
     - if token exists from email-manager, no auth prompt appears
     - if no token, running any command triggers auth flow
-  passes: false
+  passes: true
 
 # =============================================================================
 # PHASE 3: GOOGLE-CONTACTS CORE FEATURES

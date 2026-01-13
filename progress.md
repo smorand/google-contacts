@@ -166,3 +166,44 @@ google-contacts/
 - Both apps use same token file path for credential sharing
 
 ---
+
+## 2026-01-13 - US-00004 - google-contacts: People API service initialization
+
+**Status:** Completed successfully
+
+### What was implemented
+Implemented Google People API service wrapper in `internal/contacts/service.go`:
+- `Service` struct that embeds `*people.Service` for full People API access
+- `GetPeopleService(ctx)` function that returns an authenticated service
+- `TestConnection(ctx)` method to verify API connectivity by fetching the user profile
+
+### Files changed
+- **Created:**
+  - `internal/contacts/service.go` - People API service wrapper
+- **Modified:**
+  - `CLAUDE.md` - Added People API reference section with usage examples
+  - `README.md` - Added first-time authentication section
+
+### Learnings
+
+**Service wrapper pattern:**
+- Embedding `*people.Service` in a custom `Service` struct provides:
+  - Full access to all People API methods via the embedded struct
+  - Ability to add custom helper methods (like `TestConnection`)
+  - Clean API surface for consumers
+
+**People API client creation:**
+- Use `people.NewService(ctx, option.WithHTTPClient(client))` to create the service
+- The `option.WithHTTPClient()` is from `google.golang.org/api/option` package
+- Import alias: `people "google.golang.org/api/people/v1"`
+
+**PersonFields parameter:**
+- People API methods require specifying which fields to return via `PersonFields()`
+- Common fields: `names`, `phoneNumbers`, `emailAddresses`, `organizations`, `biographies`, `metadata`
+- Fields are comma-separated: `PersonFields("names,phoneNumbers")`
+
+**Testing connection:**
+- Fetching `people/me` with minimal fields is an efficient way to verify API connectivity
+- This confirms authentication works without returning large amounts of data
+
+---
