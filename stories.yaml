@@ -1,0 +1,397 @@
+# Google Contacts Project - User Stories
+# This file includes both:
+# - Stories for aligning email-manager to golang skill conventions
+# - Stories for the new google-contacts application
+#
+# Credentials Strategy: Duplicated auth code with unified scopes
+# Both applications have their own pkg/auth/ with IDENTICAL code containing:
+# - Gmail scopes (for email-manager)
+# - Contacts scopes (for google-contacts)
+# Both use the same token file: ~/.credentials/google_token.json
+# This ensures single OAuth consent for both apps.
+
+# =============================================================================
+# PHASE 1: EMAIL-MANAGER ALIGNMENT (to golang skill structure)
+# =============================================================================
+
+- id: US-00001
+  title: "email-manager: Restructure to golang skill layout"
+  priority: 1
+  description: |
+    Restructure email-manager project to follow golang skill conventions.
+
+    Current structure (non-standard):
+    ```
+    email-manager/
+    ├── src/
+    │   ├── main.go
+    │   ├── cli.go
+    │   ├── auth.go
+    │   ├── go.mod
+    │   └── go.sum
+    ```
+
+    Target structure (golang skill compliant):
+    ```
+    email-manager/
+    ├── go.mod              # Module at root
+    ├── go.sum
+    ├── cmd/
+    │   └── email-manager/
+    │       └── main.go     # Entry point only
+    ├── internal/
+    │   ├── cli/
+    │   │   └── cli.go      # CLI commands
+    │   └── gmail/
+    │       └── service.go  # Gmail API service
+    └── pkg/
+        └── auth/
+            └── auth.go     # OAuth2 authentication (will be duplicated)
+    ```
+
+    Acceptance criteria:
+    - go.mod moved to project root with correct module path
+    - Entry point in cmd/email-manager/main.go (minimal, just wiring)
+    - Business logic in internal/ packages
+    - Auth code in pkg/auth/ (prepared for duplication to google-contacts)
+    - All existing functionality preserved
+    - make build && make test pass
+  tests:
+    - go.mod exists at project root (not in src/)
+    - cmd/email-manager/main.go exists and is minimal entry point
+    - internal/cli/cli.go exists with command implementations
+    - internal/gmail/service.go exists with Gmail service logic
+    - pkg/auth/auth.go exists with OAuth2 logic
+    - src/ directory no longer exists
+    - make clean && make build succeeds
+    - ./bin/email-manager --help shows usage
+    - all existing commands still work (send, list, get, search, etc.)
+  passes: true
+
+- id: US-00002
+  title: "email-manager: Add People API scopes for unified credentials"
+  priority: 2
+  description: |
+    Extend email-manager OAuth2 configuration to include Google People API scopes.
+    This enables a single OAuth consent for both email-manager and google-contacts.
+
+    Current scopes (Gmail only):
+    - gmail.GmailModifyScope
+    - gmail.GmailSendScope
+    - gmail.GmailLabelsScope
+
+    New scopes to add (People API):
+    - people.ContactsScope (read/write contacts)
+    - people.ContactsOtherReadonlyScope (read other contacts)
+
+    IMPORTANT: Adding new scopes will require user re-authorization.
+    The token file should be deleted to force re-auth with combined scopes.
+
+    The pkg/auth/auth.go will contain ALL scopes (Gmail + Contacts) so that:
+    - email-manager uses Gmail scopes from the unified token
+    - google-contacts uses Contacts scopes from the same token
+    - User only authorizes once for both apps
+
+    Acceptance criteria:
+    - People API scopes added to pkg/auth/auth.go
+    - Token file path remains ~/.credentials/google_token.json
+    - Re-authorization flow works correctly
+    - Gmail functionality still works after re-auth
+  tests:
+    - pkg/auth/auth.go includes people.ContactsScope
+    - pkg/auth/auth.go includes people.ContactsOtherReadonlyScope
+    - make build succeeds
+    - after deleting token, re-auth prompts for Gmail AND Contacts permissions
+    - email-manager list command works after re-auth
+  passes: true
+
+# =============================================================================
+# PHASE 2: GOOGLE-CONTACTS PROJECT INITIALIZATION
+# =============================================================================
+
+- id: US-00003
+  title: "google-contacts: Project initialization with duplicated auth"
+  priority: 3
+  description: |
+    Initialize the google-contacts project following golang skill conventions.
+    Duplicate the auth code from email-manager (pkg/auth/auth.go).
+
+    Project structure:
+    ```
+    google-contacts/
+    ├── go.mod
+    ├── go.sum
+    ├── Makefile
+    ├── README.md
+    ├── CLAUDE.md
+    ├── .gitignore
+    ├── cmd/
+    │   └── google-contacts/
+    │       └── main.go
+    ├── internal/
+    │   └── cli/
+    │       └── cli.go
+    └── pkg/
+        └── auth/
+            └── auth.go     # DUPLICATED from email-manager (identical)
+    ```
+
+    The pkg/auth/auth.go must be IDENTICAL to email-manager's version:
+    - Same scopes (Gmail + Contacts)
+    - Same token file path (~/.credentials/google_token.json)
+    - Same credentials file path (~/.credentials/google_credentials.json)
+
+    Features:
+    - Cobra CLI framework
+    - Basic --help and --version commands
+    - Git repository initialized
+    - GitHub repository created (smorand/google-contacts, public)
+
+    Acceptance criteria:
+    - Project compiles and runs
+    - pkg/auth/auth.go is identical to email-manager's version
+    - --help shows usage information
+    - --version shows version string
+    - Git initialized with initial commit
+    - GitHub repo created and pushed
+  tests:
+    - go.mod exists at project root
+    - cmd/google-contacts/main.go exists
+    - internal/cli/cli.go exists with root command
+    - pkg/auth/auth.go exists and matches email-manager version
+    - Makefile exists with build, test, clean targets
+    - README.md exists with project description
+    - CLAUDE.md exists for AI interactions
+    - .gitignore exists with Go patterns
+    - make clean && make build succeeds
+    - ./bin/google-contacts --help shows usage
+    - ./bin/google-contacts --version shows version
+    - git log shows initial commit
+    - gh repo view smorand/google-contacts succeeds
+  passes: true
+
+- id: US-00004
+  title: "google-contacts: People API service initialization"
+  priority: 4
+  description: |
+    Implement Google People API service initialization using the duplicated auth.
+
+    Implementation:
+    - Import auth package from local pkg/auth
+    - Create People API service wrapper in internal/contacts/
+    - Handle authentication errors gracefully
+    - Test connection with a simple API call
+
+    The service should be created lazily on first command execution,
+    not at application startup.
+
+    File structure:
+    ```
+    internal/
+    └── contacts/
+        └── service.go    # People API service wrapper
+    ```
+
+    Acceptance criteria:
+    - People API service can be created
+    - Auth flow works (browser opens for first-time auth if no token)
+    - If token exists (from email-manager), no re-auth needed
+    - Proper error messages for auth failures
+  tests:
+    - internal/contacts/service.go exists
+    - GetPeopleService(ctx) function is implemented
+    - make build succeeds
+    - if token exists from email-manager, no auth prompt appears
+    - if no token, running any command triggers auth flow
+  passes: false
+
+# =============================================================================
+# PHASE 3: GOOGLE-CONTACTS CORE FEATURES
+# =============================================================================
+
+- id: US-00005
+  title: "google-contacts: Create contact command"
+  priority: 5
+  description: |
+    Implement the 'create' command to add new contacts.
+
+    Command: google-contacts create [flags]
+
+    Required flags:
+    - --firstname, -f: First name (required)
+    - --lastname, -l: Last name (required)
+    - --phone, -p: Phone number (required)
+
+    Important flags:
+    - --company, -c: Company name (highly recommended)
+
+    Optional flags:
+    - --email, -e: Email address
+    - --position, -r: Role/position at company
+    - --notes, -n: Notes about the contact
+
+    Output:
+    - Success: Display created contact ID and summary
+    - Error: Clear error message
+
+    Acceptance criteria:
+    - Contact created in Google Contacts
+    - All fields properly mapped to People API
+    - Phone number formatted correctly
+    - Returns contact ID for reference
+  tests:
+    - google-contacts create --help shows all flags
+    - create with only required fields succeeds
+    - create with all fields succeeds
+    - create without required fields shows error
+    - created contact visible in Google Contacts web UI
+    - output shows contact ID
+  passes: false
+
+- id: US-00006
+  title: "google-contacts: Search contacts command"
+  priority: 6
+  description: |
+    Implement the 'search' command to find contacts.
+
+    Command: google-contacts search <query>
+
+    Search capabilities:
+    - By name (partial match)
+    - By email (partial match)
+    - By phone number
+    - By company name
+
+    Output behavior:
+    - Multiple results: Show list with main info (name, phone, company, email)
+    - Single result: Show full contact details automatically
+    - No results: Clear message
+
+    List format (multiple results):
+    ```
+    ID          | Name           | Phone        | Company    | Email
+    c123456789  | John Doe       | +33612345678 | Acme Inc   | john@acme.com
+    c987654321  | John Smith     | +33698765432 | Tech Corp  | john@tech.com
+    ```
+
+    Acceptance criteria:
+    - Search by any field works
+    - Partial matches supported
+    - Single result shows full details
+    - Multiple results show summary list
+  tests:
+    - google-contacts search --help shows usage
+    - search by name returns matching contacts
+    - search by partial name works
+    - search by email works
+    - search by phone works
+    - search by company works
+    - single result displays full info
+    - multiple results display summary list
+    - no results shows appropriate message
+  passes: false
+
+- id: US-00007
+  title: "google-contacts: Show contact details command"
+  priority: 7
+  description: |
+    Implement the 'show' command to display full contact information.
+
+    Command: google-contacts show <contact-id>
+
+    The contact ID is the Google Contact resource name (e.g., "people/c123456789")
+    or just the ID part ("c123456789").
+
+    Full information display:
+    - Name (first, last)
+    - All phone numbers (with labels: mobile, work, home)
+    - All email addresses (with labels)
+    - Company and position
+    - Notes
+    - Google Contact ID
+    - Creation/modification dates (if available)
+
+    Format: Human-readable, possibly with colors for labels.
+
+    Acceptance criteria:
+    - Contact retrieved by ID
+    - All available fields displayed
+    - Clear formatting with labels
+    - Error if contact not found
+  tests:
+    - google-contacts show --help shows usage
+    - show with valid ID displays full contact
+    - show displays all phone numbers with labels
+    - show displays all emails with labels
+    - show displays company and position
+    - show displays notes
+    - show with invalid ID shows error
+  passes: false
+
+# =============================================================================
+# PHASE 4: POLISH AND DOCUMENTATION
+# =============================================================================
+
+- id: US-00008
+  title: "google-contacts: Complete documentation"
+  priority: 8
+  description: |
+    Finalize all project documentation.
+
+    README.md should include:
+    - Project description and purpose
+    - Prerequisites (Go, Google Cloud project, credentials)
+    - Installation instructions
+    - Configuration (credentials setup)
+    - Usage examples for all commands
+    - Explanation of credential sharing with email-manager
+    - Note about unified scopes and single OAuth consent
+
+    CLAUDE.md should include:
+    - Project structure overview
+    - Key files and their purposes
+    - Common development tasks
+    - Testing instructions
+    - API integration details
+    - Note about duplicated auth code and why
+
+    Acceptance criteria:
+    - README.md is complete and accurate
+    - CLAUDE.md enables efficient AI collaboration
+    - All commands documented with examples
+  tests:
+    - README.md contains installation instructions
+    - README.md contains usage examples for create, search, show
+    - README.md explains credential setup
+    - README.md explains credential sharing with email-manager
+    - CLAUDE.md contains project structure
+    - CLAUDE.md contains development workflow
+    - CLAUDE.md mentions duplicated auth code rationale
+  passes: false
+
+- id: US-00009
+  title: "google-contacts: Unit tests"
+  priority: 9
+  description: |
+    Implement unit tests for core functionality.
+
+    Test coverage:
+    - CLI argument parsing
+    - Contact field validation
+    - Phone number formatting
+    - Search query handling
+    - Error handling paths
+
+    Use standard library testing (if + t.Errorf pattern).
+    Mock external API calls for unit tests.
+
+    Acceptance criteria:
+    - Tests cover main code paths
+    - make test passes
+    - No external API calls in unit tests
+  tests:
+    - internal/cli/cli_test.go exists
+    - internal/contacts/service_test.go exists
+    - make test passes with no errors
+    - tests run without network calls
+  passes: false
