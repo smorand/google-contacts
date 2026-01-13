@@ -326,7 +326,7 @@
     - show displays company and position
     - show displays notes
     - show with invalid ID shows error
-  passes: false
+  passes: true
 
 # =============================================================================
 # PHASE 4: POLISH AND DOCUMENTATION
