@@ -38,7 +38,7 @@ google-contacts/
 
 1. **cmd/google-contacts/main.go** - Minimal entry point, initializes CLI and executes
 2. **internal/cli/cli.go** - Command definitions, flag setup, command handlers
-3. **internal/contacts/service.go** - (future) People API service wrapper
+3. **internal/contacts/service.go** - People API service wrapper with `GetPeopleService()` function
 4. **pkg/auth/auth.go** - OAuth2 authentication (identical to email-manager)
 
 ### Command Structure (planned)
@@ -124,8 +124,27 @@ make uninstall  # Remove from system
 
 **Add service method**:
 1. Create function in `internal/contacts/service.go`
-2. Use `auth.GetClient(ctx)` to get authenticated HTTP client
-3. Create People API service with `people.NewService(ctx, option.WithHTTPClient(client))`
+2. Use `contacts.GetPeopleService(ctx)` to get authenticated service
+3. Call People API methods via `srv.People.Get()`, `srv.People.SearchContacts()`, etc.
+
+**Using the contacts service**:
+```go
+import "google-contacts/internal/contacts"
+
+// Get authenticated service (triggers OAuth flow if no token)
+srv, err := contacts.GetPeopleService(ctx)
+if err != nil {
+    return fmt.Errorf("failed to get service: %w", err)
+}
+
+// Test connection
+if err := srv.TestConnection(ctx); err != nil {
+    return fmt.Errorf("connection test failed: %w", err)
+}
+
+// Use People API methods
+result, err := srv.People.Get("people/c123456789").PersonFields("names,phoneNumbers").Do()
+```
 
 ## File Locations
 
@@ -158,3 +177,25 @@ pkg/
 - Always use proper error wrapping with `%w` format
 - Follow Go coding standards defined in golang skill
 - pkg/auth is duplicated from email-manager, keep them in sync manually
+
+## People API Reference
+
+### Service Wrapper
+
+The `internal/contacts/service.go` provides:
+- `GetPeopleService(ctx)` - Returns authenticated `*Service` wrapper
+- `(*Service).TestConnection(ctx)` - Verifies API connectivity
+
+The `Service` struct embeds `*people.Service` for full People API access.
+
+### Common PersonFields
+
+When calling People API methods, use `PersonFields()` to specify which fields to return:
+- `names` - First name, last name
+- `phoneNumbers` - Phone numbers with labels
+- `emailAddresses` - Email addresses with labels
+- `organizations` - Company, job title
+- `biographies` - Notes/bio text
+- `metadata` - Creation/update times, sources
+
+Example: `PersonFields("names,phoneNumbers,emailAddresses,organizations")`

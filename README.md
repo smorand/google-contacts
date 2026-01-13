@@ -47,6 +47,15 @@ This application shares credentials with [email-manager](https://github.com/smor
 
 Both applications use unified OAuth scopes, so you only need to authorize once for both Gmail and Contacts access.
 
+### First-time Authentication
+
+On first use, the application will:
+1. Open your browser for Google OAuth consent
+2. Request permissions for Gmail and Contacts APIs
+3. Save the token to `~/.credentials/google_token.json`
+
+If you've already authorized email-manager, the existing token will be used automatically (no re-authorization needed).
+
 ## Usage
 
 ```bash
@@ -81,7 +90,8 @@ google-contacts/
 ├── internal/
 │   ├── cli/
 │   │   └── cli.go            # CLI commands
-│   └── contacts/             # (future) People API service
+│   └── contacts/
+│       └── service.go        # People API service wrapper
 └── pkg/
     └── auth/
         └── auth.go           # OAuth2 authentication
