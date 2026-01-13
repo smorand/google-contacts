@@ -63,6 +63,25 @@ type CreatedContact struct {
 	DisplayName  string
 }
 
+// SearchResult contains the data for a contact search result.
+type SearchResult struct {
+	ResourceName string
+	DisplayName  string
+	Phone        string
+	Email        string
+	Company      string
+	Position     string
+	Notes        string
+}
+
+// extractID extracts the contact ID from a resource name (e.g., "people/c123" -> "c123")
+func extractID(resourceName string) string {
+	if len(resourceName) > 7 && resourceName[:7] == "people/" {
+		return resourceName[7:]
+	}
+	return resourceName
+}
+
 // CreateContact creates a new contact in Google Contacts.
 // Returns the created contact's resource name and display name.
 func (s *Service) CreateContact(ctx context.Context, input ContactInput) (*CreatedContact, error) {
@@ -125,6 +144,121 @@ func (s *Service) CreateContact(ctx context.Context, input ContactInput) (*Creat
 	// Extract display name from created contact
 	if len(created.Names) > 0 {
 		result.DisplayName = created.Names[0].DisplayName
+	}
+
+	return result, nil
+}
+
+// SearchContacts searches for contacts matching the given query.
+// The query matches on names, emails, phone numbers, and organizations.
+// Returns a list of matching contacts with their details.
+func (s *Service) SearchContacts(ctx context.Context, query string) ([]SearchResult, error) {
+	// Send warmup request first (with empty query) to update cache
+	// This is recommended by Google's API documentation
+	_, _ = s.People.SearchContacts().
+		Query("").
+		ReadMask("names").
+		Context(ctx).
+		Do()
+
+	// Now send the actual search request
+	resp, err := s.People.SearchContacts().
+		Query(query).
+		PageSize(30).
+		ReadMask("names,phoneNumbers,emailAddresses,organizations,biographies").
+		Context(ctx).
+		Do()
+	if err != nil {
+		return nil, fmt.Errorf("failed to search contacts: %w", err)
+	}
+
+	var results []SearchResult
+	for _, r := range resp.Results {
+		if r.Person == nil {
+			continue
+		}
+		p := r.Person
+
+		result := SearchResult{
+			ResourceName: p.ResourceName,
+		}
+
+		// Extract display name
+		if len(p.Names) > 0 {
+			result.DisplayName = p.Names[0].DisplayName
+		}
+
+		// Extract first phone number
+		if len(p.PhoneNumbers) > 0 {
+			result.Phone = p.PhoneNumbers[0].Value
+		}
+
+		// Extract first email
+		if len(p.EmailAddresses) > 0 {
+			result.Email = p.EmailAddresses[0].Value
+		}
+
+		// Extract company and position
+		if len(p.Organizations) > 0 {
+			result.Company = p.Organizations[0].Name
+			result.Position = p.Organizations[0].Title
+		}
+
+		// Extract notes
+		if len(p.Biographies) > 0 {
+			result.Notes = p.Biographies[0].Value
+		}
+
+		results = append(results, result)
+	}
+
+	return results, nil
+}
+
+// GetContact retrieves a single contact by its resource name.
+// The resourceName can be a full path (e.g., "people/c123") or just the ID (e.g., "c123").
+func (s *Service) GetContact(ctx context.Context, resourceName string) (*SearchResult, error) {
+	// Normalize resource name
+	if len(resourceName) > 0 && resourceName[0] != 'p' {
+		resourceName = "people/" + resourceName
+	}
+
+	p, err := s.People.Get(resourceName).
+		PersonFields("names,phoneNumbers,emailAddresses,organizations,biographies,metadata").
+		Context(ctx).
+		Do()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get contact: %w", err)
+	}
+
+	result := &SearchResult{
+		ResourceName: p.ResourceName,
+	}
+
+	// Extract display name
+	if len(p.Names) > 0 {
+		result.DisplayName = p.Names[0].DisplayName
+	}
+
+	// Extract first phone number
+	if len(p.PhoneNumbers) > 0 {
+		result.Phone = p.PhoneNumbers[0].Value
+	}
+
+	// Extract first email
+	if len(p.EmailAddresses) > 0 {
+		result.Email = p.EmailAddresses[0].Value
+	}
+
+	// Extract company and position
+	if len(p.Organizations) > 0 {
+		result.Company = p.Organizations[0].Name
+		result.Position = p.Organizations[0].Title
+	}
+
+	// Extract notes
+	if len(p.Biographies) > 0 {
+		result.Notes = p.Biographies[0].Value
 	}
 
 	return result, nil

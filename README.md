@@ -96,10 +96,37 @@ google-contacts create \
 | `--email` | `-e` | No | Email address |
 | `--notes` | `-n` | No | Notes about the contact |
 
-### Search Contacts (Coming Soon)
+### Search Contacts
+
+Search for contacts by name, phone, email, or company:
 
 ```bash
+# Search by name
 google-contacts search "John"
+
+# Search by partial name
+google-contacts search "Joh"
+
+# Search by company
+google-contacts search "Acme"
+
+# Search by phone (partial match)
+google-contacts search "0612"
+```
+
+**Output behavior:**
+- **Single result**: Shows full contact details (name, phone, email, company, position, notes)
+- **Multiple results**: Shows a summary table with ID, name, phone, company, and email
+- **No results**: Displays a message indicating no matches found
+
+**Example output (multiple results):**
+```
+Found 2 contacts:
+
+ID               Name                  Phone            Company          Email
+---------------  --------------------  ---------------  ---------------  -------------------------
+c123456789       John Doe              +33612345678     Acme Inc         john@acme.com
+c987654321       John Smith            +33698765432     Tech Corp        john@tech.com
 ```
 
 ### Show Contact Details (Coming Soon)
