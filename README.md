@@ -64,14 +64,47 @@ google-contacts --help
 
 # Show version
 google-contacts --version
+```
 
-# Create a contact (coming soon)
-google-contacts create --firstname John --lastname Doe --phone +33612345678
+### Create a Contact
 
-# Search contacts (coming soon)
+Create a new contact with required and optional fields:
+
+```bash
+# Create with required fields only
+google-contacts create -f John -l Doe -p +33612345678
+
+# Create with all fields
+google-contacts create \
+  --firstname John \
+  --lastname Doe \
+  --phone +33612345678 \
+  --company "Acme Inc" \
+  --position "CTO" \
+  --email john@acme.com \
+  --notes "Met at conference"
+```
+
+**Flags:**
+| Flag | Short | Required | Description |
+|------|-------|----------|-------------|
+| `--firstname` | `-f` | Yes | First name |
+| `--lastname` | `-l` | Yes | Last name |
+| `--phone` | `-p` | Yes | Phone number |
+| `--company` | `-c` | No | Company name |
+| `--position` | `-r` | No | Role/position at company |
+| `--email` | `-e` | No | Email address |
+| `--notes` | `-n` | No | Notes about the contact |
+
+### Search Contacts (Coming Soon)
+
+```bash
 google-contacts search "John"
+```
 
-# Show contact details (coming soon)
+### Show Contact Details (Coming Soon)
+
+```bash
 google-contacts show c123456789
 ```
 

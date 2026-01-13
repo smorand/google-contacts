@@ -45,3 +45,87 @@ func (s *Service) TestConnection(ctx context.Context) error {
 	}
 	return nil
 }
+
+// ContactInput contains the data for creating a new contact.
+type ContactInput struct {
+	FirstName string
+	LastName  string
+	Phone     string
+	Email     string
+	Company   string
+	Position  string
+	Notes     string
+}
+
+// CreatedContact contains the result of a contact creation.
+type CreatedContact struct {
+	ResourceName string
+	DisplayName  string
+}
+
+// CreateContact creates a new contact in Google Contacts.
+// Returns the created contact's resource name and display name.
+func (s *Service) CreateContact(ctx context.Context, input ContactInput) (*CreatedContact, error) {
+	person := &people.Person{
+		Names: []*people.Name{
+			{
+				GivenName:  input.FirstName,
+				FamilyName: input.LastName,
+			},
+		},
+		PhoneNumbers: []*people.PhoneNumber{
+			{
+				Value: input.Phone,
+				Type:  "mobile",
+			},
+		},
+	}
+
+	// Add optional fields
+	if input.Email != "" {
+		person.EmailAddresses = []*people.EmailAddress{
+			{
+				Value: input.Email,
+				Type:  "work",
+			},
+		}
+	}
+
+	if input.Company != "" || input.Position != "" {
+		person.Organizations = []*people.Organization{
+			{
+				Name:  input.Company,
+				Title: input.Position,
+			},
+		}
+	}
+
+	if input.Notes != "" {
+		person.Biographies = []*people.Biography{
+			{
+				Value:       input.Notes,
+				ContentType: "TEXT_PLAIN",
+			},
+		}
+	}
+
+	// Create the contact
+	created, err := s.People.CreateContact(person).
+		PersonFields("names,phoneNumbers,emailAddresses,organizations,biographies").
+		Context(ctx).
+		Do()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create contact: %w", err)
+	}
+
+	result := &CreatedContact{
+		ResourceName: created.ResourceName,
+	}
+
+	// Extract display name from created contact
+	if len(created.Names) > 0 {
+		result.DisplayName = created.Names[0].DisplayName
+	}
+
+	return result, nil
+}

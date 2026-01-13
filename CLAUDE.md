@@ -41,13 +41,13 @@ google-contacts/
 3. **internal/contacts/service.go** - People API service wrapper with `GetPeopleService()` function
 4. **pkg/auth/auth.go** - OAuth2 authentication (identical to email-manager)
 
-### Command Structure (planned)
+### Command Structure
 
 ```
 google-contacts
-├── create               # Create new contact
-├── search               # Search contacts
-├── show                 # Show contact details
+├── create               # Create new contact (implemented)
+├── search               # Search contacts (planned)
+├── show                 # Show contact details (planned)
 └── version              # Print version
 ```
 
@@ -185,8 +185,30 @@ pkg/
 The `internal/contacts/service.go` provides:
 - `GetPeopleService(ctx)` - Returns authenticated `*Service` wrapper
 - `(*Service).TestConnection(ctx)` - Verifies API connectivity
+- `(*Service).CreateContact(ctx, input)` - Creates a new contact
 
 The `Service` struct embeds `*people.Service` for full People API access.
+
+### ContactInput and CreatedContact
+
+```go
+// Input for creating a contact
+type ContactInput struct {
+    FirstName string  // Required
+    LastName  string  // Required
+    Phone     string  // Required
+    Email     string  // Optional
+    Company   string  // Optional
+    Position  string  // Optional
+    Notes     string  // Optional
+}
+
+// Result of contact creation
+type CreatedContact struct {
+    ResourceName string  // e.g., "people/c123456789"
+    DisplayName  string  // e.g., "John Doe"
+}
+```
 
 ### Common PersonFields
 
@@ -199,3 +221,32 @@ When calling People API methods, use `PersonFields()` to specify which fields to
 - `metadata` - Creation/update times, sources
 
 Example: `PersonFields("names,phoneNumbers,emailAddresses,organizations")`
+
+### People API Patterns
+
+**Creating contacts:**
+```go
+person := &people.Person{
+    Names: []*people.Name{{
+        GivenName:  "John",
+        FamilyName: "Doe",
+    }},
+    PhoneNumbers: []*people.PhoneNumber{{
+        Value: "+33612345678",
+        Type:  "mobile",  // mobile, work, home, etc.
+    }},
+}
+
+created, err := srv.People.CreateContact(person).
+    PersonFields("names,phoneNumbers").
+    Context(ctx).
+    Do()
+```
+
+**Organization fields:**
+- `Name` - Company name
+- `Title` - Job title/position
+
+**Biography (notes):**
+- `Value` - The note text
+- `ContentType` - "TEXT_PLAIN" or "TEXT_HTML"
