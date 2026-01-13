@@ -253,3 +253,55 @@ Implemented the 'create' command to add new contacts to Google Contacts via Peop
 - Colors are automatically disabled when output is piped
 
 ---
+
+## 2026-01-14 - US-00006 - google-contacts: Search contacts command
+
+**Status:** Completed successfully
+
+### What was implemented
+Implemented the 'search' command to find contacts by name, phone, email, or company using the People API searchContacts endpoint.
+
+**Features:**
+- Single query argument searches across names, phones, emails, and organizations
+- Single result: displays full contact details with colorized output
+- Multiple results: displays summary table using tabwriter for aligned columns
+- No results: shows appropriate message
+- Automatic cache warmup request before search (as recommended by Google)
+
+### Files changed
+- **Modified:**
+  - `internal/cli/cli.go` - Added searchCmd with runSearch handler, displayContactDetails(), displayContactTable(), extractID(), truncate()
+  - `internal/contacts/service.go` - Added SearchResult type, SearchContacts(), GetContact() methods
+  - `CLAUDE.md` - Updated with search patterns and API reference
+  - `README.md` - Added search command usage documentation
+
+### Learnings
+
+**People API SearchContacts pattern:**
+- Use `srv.People.SearchContacts().Query(query).PageSize(30).ReadMask("...").Context(ctx).Do()`
+- SearchContacts requires a warmup request with empty query before actual search
+- The warmup updates the search cache for better results
+- Maximum PageSize is 30 (values greater are capped)
+
+**Search response structure:**
+- Response contains `Results` array with `Person` objects
+- Each Result has `Person` field that may be nil (need to check)
+- Person contains ResourceName and requested fields
+
+**ReadMask for search:**
+- Use comma-separated field names: `names,phoneNumbers,emailAddresses,organizations,biographies`
+- Only requested fields are returned
+- Must match field names exactly (case-sensitive)
+
+**CLI output formatting:**
+- `text/tabwriter` provides aligned column output for tables
+- Use `tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)` for tab-aligned output
+- Remember to call `w.Flush()` (defer is common pattern)
+- Truncate long strings with `...` suffix for clean display
+
+**Resource name handling:**
+- Resource names are in format `people/cXXXXXXXXX`
+- Extract just the ID part (`cXXXXXXXXX`) for display
+- GetContact accepts both full resource name and just the ID
+
+---
