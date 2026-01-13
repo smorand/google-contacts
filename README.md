@@ -213,6 +213,22 @@ make fmt
 make check
 ```
 
+### Testing
+
+Unit tests cover CLI utilities and service type validation:
+
+```bash
+# Run all tests
+make test
+
+# Run tests directly with go test
+go test ./...
+```
+
+Tests are located at:
+- `internal/cli/cli_test.go` - CLI utility functions
+- `internal/contacts/service_test.go` - Service types and validation
+
 ## License
 
 MIT

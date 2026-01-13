@@ -155,18 +155,69 @@ result, err := srv.People.Get("people/c123456789").PersonFields("names,phoneNumb
 
 ## Testing
 
-Recommended test structure:
+### Test Structure
 
 ```
 internal/
 ├── cli/
-│   └── cli_test.go
+│   └── cli_test.go         # CLI utility function tests
 └── contacts/
-    └── service_test.go
-pkg/
-└── auth/
-    └── auth_test.go
+    └── service_test.go     # Service type and validation tests
 ```
+
+### Running Tests
+
+```bash
+make test       # Run all tests with verbose output
+go test ./...   # Alternative: run with go test directly
+```
+
+### Test Patterns
+
+Tests use standard library testing with table-driven tests (`if` + `t.Errorf` pattern):
+
+```go
+func TestExtractID(t *testing.T) {
+    tests := []struct {
+        name         string
+        resourceName string
+        expected     string
+    }{
+        {"full resource name", "people/c123", "c123"},
+        {"ID only", "c123", "c123"},
+    }
+    for _, tc := range tests {
+        t.Run(tc.name, func(t *testing.T) {
+            result := extractID(tc.resourceName)
+            if result != tc.expected {
+                t.Errorf("extractID(%q) = %q, want %q", tc.resourceName, result, tc.expected)
+            }
+        })
+    }
+}
+```
+
+### What's Tested
+
+- **CLI utilities** (`internal/cli/cli_test.go`):
+  - `extractID()` - Resource name to ID extraction
+  - `truncate()` - String truncation for table display
+  - `formatTime()` - ISO 8601 timestamp formatting
+  - Field validation logic for create command
+
+- **Service types** (`internal/contacts/service_test.go`):
+  - `extractID()` - Resource name parsing
+  - `ContactInput` validation
+  - `SearchResult` struct field access
+  - `ContactDetails` with phone/email entries
+  - Resource name normalization
+
+### Test Guidelines
+
+- No network calls in unit tests (external API is mocked/avoided)
+- Test pure functions and validation logic
+- Use table-driven tests for multiple cases
+- Test edge cases (empty strings, boundary conditions)
 
 ## Notes for AI
 
