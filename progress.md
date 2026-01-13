@@ -363,3 +363,43 @@ Implemented the 'show' command to display full contact details by ID, including 
 - Provides automatic error message: "Error: accepts 1 arg(s), received 0"
 
 ---
+
+## 2026-01-14 - US-00008 - google-contacts: Complete documentation
+
+**Status:** Completed successfully
+
+### What was implemented
+Verified and finalized all project documentation. Both README.md and CLAUDE.md were already comprehensive from previous stories. Only minor update needed.
+
+### Files changed
+- **Modified:**
+  - `CLAUDE.md` - Removed "(future)" comment from contacts package description as the People API service is now fully implemented
+
+### Documentation verification
+All acceptance criteria were already met:
+
+**README.md:**
+- ✅ Installation instructions (clone, make build, make install)
+- ✅ Usage examples for create command with all flags
+- ✅ Usage examples for search command with various query types
+- ✅ Usage examples for show command with example output
+- ✅ Credential setup (Google Cloud project, People API, OAuth credentials)
+- ✅ Credential sharing explanation with email-manager
+
+**CLAUDE.md:**
+- ✅ Project structure with file tree
+- ✅ Development workflow (build, test, fmt, check targets)
+- ✅ Duplicated auth code rationale (simpler deployment, independent builds, no versioning conflicts)
+
+### Learnings
+
+**Documentation completeness in incremental development:**
+- When implementing features incrementally (US-00005, US-00006, US-00007), documenting each feature as it's built results in naturally complete documentation
+- By the time US-00008 was reached, documentation was already comprehensive
+- The dedicated documentation story serves as a verification checkpoint rather than a major implementation effort
+
+**Outdated comments:**
+- Watch for comments like "(future)" that become stale as features are implemented
+- Good practice to update comments as part of feature implementation, not just in documentation stories
+
+---
