@@ -57,15 +57,15 @@
     - All existing functionality preserved
     - make build && make test pass
   tests:
-    - go.mod exists at project root (not in src/)
-    - cmd/email-manager/main.go exists and is minimal entry point
-    - internal/cli/cli.go exists with command implementations
-    - internal/gmail/service.go exists with Gmail service logic
-    - pkg/auth/auth.go exists with OAuth2 logic
-    - src/ directory no longer exists
-    - make clean && make build succeeds
-    - ./bin/email-manager --help shows usage
-    - all existing commands still work (send, list, get, search, etc.)
+  - go.mod exists at project root (not in src/)
+  - cmd/email-manager/main.go exists and is minimal entry point
+  - internal/cli/cli.go exists with command implementations
+  - internal/gmail/service.go exists with Gmail service logic
+  - pkg/auth/auth.go exists with OAuth2 logic
+  - src/ directory no longer exists
+  - make clean && make build succeeds
+  - ./bin/email-manager --help shows usage
+  - all existing commands still work (send, list, get, search, etc.)
   passes: true
 
 - id: US-00002
@@ -98,11 +98,11 @@
     - Re-authorization flow works correctly
     - Gmail functionality still works after re-auth
   tests:
-    - pkg/auth/auth.go includes people.ContactsScope
-    - pkg/auth/auth.go includes people.ContactsOtherReadonlyScope
-    - make build succeeds
-    - after deleting token, re-auth prompts for Gmail AND Contacts permissions
-    - email-manager list command works after re-auth
+  - pkg/auth/auth.go includes people.ContactsScope
+  - pkg/auth/auth.go includes people.ContactsOtherReadonlyScope
+  - make build succeeds
+  - after deleting token, re-auth prompts for Gmail AND Contacts permissions
+  - email-manager list command works after re-auth
   passes: true
 
 # =============================================================================
@@ -155,19 +155,19 @@
     - Git initialized with initial commit
     - GitHub repo created and pushed
   tests:
-    - go.mod exists at project root
-    - cmd/google-contacts/main.go exists
-    - internal/cli/cli.go exists with root command
-    - pkg/auth/auth.go exists and matches email-manager version
-    - Makefile exists with build, test, clean targets
-    - README.md exists with project description
-    - CLAUDE.md exists for AI interactions
-    - .gitignore exists with Go patterns
-    - make clean && make build succeeds
-    - ./bin/google-contacts --help shows usage
-    - ./bin/google-contacts --version shows version
-    - git log shows initial commit
-    - gh repo view smorand/google-contacts succeeds
+  - go.mod exists at project root
+  - cmd/google-contacts/main.go exists
+  - internal/cli/cli.go exists with root command
+  - pkg/auth/auth.go exists and matches email-manager version
+  - Makefile exists with build, test, clean targets
+  - README.md exists with project description
+  - CLAUDE.md exists for AI interactions
+  - .gitignore exists with Go patterns
+  - make clean && make build succeeds
+  - ./bin/google-contacts --help shows usage
+  - ./bin/google-contacts --version shows version
+  - git log shows initial commit
+  - gh repo view smorand/google-contacts succeeds
   passes: true
 
 - id: US-00004
@@ -198,11 +198,11 @@
     - If token exists (from email-manager), no re-auth needed
     - Proper error messages for auth failures
   tests:
-    - internal/contacts/service.go exists
-    - GetPeopleService(ctx) function is implemented
-    - make build succeeds
-    - if token exists from email-manager, no auth prompt appears
-    - if no token, running any command triggers auth flow
+  - internal/contacts/service.go exists
+  - GetPeopleService(ctx) function is implemented
+  - make build succeeds
+  - if token exists from email-manager, no auth prompt appears
+  - if no token, running any command triggers auth flow
   passes: true
 
 # =============================================================================
@@ -240,12 +240,12 @@
     - Phone number formatted correctly
     - Returns contact ID for reference
   tests:
-    - google-contacts create --help shows all flags
-    - create with only required fields succeeds
-    - create with all fields succeeds
-    - create without required fields shows error
-    - created contact visible in Google Contacts web UI
-    - output shows contact ID
+  - google-contacts create --help shows all flags
+  - create with only required fields succeeds
+  - create with all fields succeeds
+  - create without required fields shows error
+  - created contact visible in Google Contacts web UI
+  - output shows contact ID
   passes: true
 
 - id: US-00006
@@ -280,15 +280,15 @@
     - Single result shows full details
     - Multiple results show summary list
   tests:
-    - google-contacts search --help shows usage
-    - search by name returns matching contacts
-    - search by partial name works
-    - search by email works
-    - search by phone works
-    - search by company works
-    - single result displays full info
-    - multiple results display summary list
-    - no results shows appropriate message
+  - google-contacts search --help shows usage
+  - search by name returns matching contacts
+  - search by partial name works
+  - search by email works
+  - search by phone works
+  - search by company works
+  - single result displays full info
+  - multiple results display summary list
+  - no results shows appropriate message
   passes: true
 
 - id: US-00007
@@ -319,13 +319,13 @@
     - Clear formatting with labels
     - Error if contact not found
   tests:
-    - google-contacts show --help shows usage
-    - show with valid ID displays full contact
-    - show displays all phone numbers with labels
-    - show displays all emails with labels
-    - show displays company and position
-    - show displays notes
-    - show with invalid ID shows error
+  - google-contacts show --help shows usage
+  - show with valid ID displays full contact
+  - show displays all phone numbers with labels
+  - show displays all emails with labels
+  - show displays company and position
+  - show displays notes
+  - show with invalid ID shows error
   passes: true
 
 # =============================================================================
@@ -360,13 +360,13 @@
     - CLAUDE.md enables efficient AI collaboration
     - All commands documented with examples
   tests:
-    - README.md contains installation instructions
-    - README.md contains usage examples for create, search, show
-    - README.md explains credential setup
-    - README.md explains credential sharing with email-manager
-    - CLAUDE.md contains project structure
-    - CLAUDE.md contains development workflow
-    - CLAUDE.md mentions duplicated auth code rationale
+  - README.md contains installation instructions
+  - README.md contains usage examples for create, search, show
+  - README.md explains credential setup
+  - README.md explains credential sharing with email-manager
+  - CLAUDE.md contains project structure
+  - CLAUDE.md contains development workflow
+  - CLAUDE.md mentions duplicated auth code rationale
   passes: true
 
 - id: US-00009
@@ -390,8 +390,163 @@
     - make test passes
     - No external API calls in unit tests
   tests:
-    - internal/cli/cli_test.go exists
-    - internal/contacts/service_test.go exists
-    - make test passes with no errors
-    - tests run without network calls
+  - internal/cli/cli_test.go exists
+  - internal/contacts/service_test.go exists
+  - make test passes with no errors
+  - tests run without network calls
   passes: true
+
+# =============================================================================
+# PHASE 5: GOOGLE-CONTACTS SKILL CREATION
+# =============================================================================
+
+- id: US-00010
+  title: "google-contacts: Create skill in ~/.claude/skills"
+  priority: 10
+  description: |
+    Create a new google-contacts skill in the global Claude skills directory.
+    This skill will allow Claude to interact with Google Contacts via the CLI.
+
+    Skill structure:
+    ```
+    ~/.claude/skills/google-contacts/
+    ├── SKILL.md           # Main skill definition with commands and usage
+    └── scripts/
+        └── google-contacts  # Symlink to installed binary
+    ```
+
+    The SKILL.md should include:
+    - Skill metadata (name, description, trigger phrases)
+    - Available commands (create, search, show)
+    - Usage examples for each command
+    - Screenshot processing workflow
+    - Integration with existing CLI
+
+    Trigger phrases (when to use this skill):
+    - "Create a contact"
+    - "Add a new contact"
+    - "Search for contact"
+    - "Find contact"
+    - "Show contact details"
+    - "Get contact info"
+    - "Create contact from screenshot"
+
+    Acceptance criteria:
+    - Skill directory created at ~/.claude/skills/google-contacts/
+    - SKILL.md defines all commands and usage patterns
+    - Symlink to binary works correctly
+    - Skill is recognized by Claude
+  tests:
+  - ~/.claude/skills/google-contacts/ directory exists
+  - ~/.claude/skills/google-contacts/SKILL.md exists
+  - SKILL.md has proper frontmatter (name, description)
+  - SKILL.md documents create, search, show commands
+  - scripts/google-contacts symlink points to correct binary
+  - skill is accessible via Claude's Skill tool
+  passes: true
+
+- id: US-00011
+  title: "google-contacts skill: Create contact from basic information"
+  priority: 11
+  description: |
+    Document and enable creating contacts from basic information.
+
+    The skill should handle natural language requests like:
+    - "Create a contact for John Doe, phone +33612345678, at Acme Corp"
+    - "Add contact: Marie Dupont, 0612345678, marie@example.com"
+    - "New contact Jean Martin from TechCorp, +33612345678, CTO"
+
+    Skill workflow:
+    1. Parse user request to extract: first name, last name, phone, email, company, position
+    2. Validate required fields (first name, last name, phone)
+    3. Execute google-contacts create command with extracted values
+    4. Return confirmation with contact ID
+
+    SKILL.md should include:
+    - Natural language parsing examples
+    - Command construction patterns
+    - Error handling for missing required fields
+
+    Acceptance criteria:
+    - SKILL.md documents natural language parsing for contact creation
+    - Examples cover various input formats
+    - Required vs optional fields clearly documented
+  tests:
+  - SKILL.md contains create contact workflow
+  - SKILL.md shows examples of natural language parsing
+  - SKILL.md documents required fields (first name, last name, phone)
+  - SKILL.md documents optional fields (email, company, position, notes)
+  passes: false
+
+- id: US-00012
+  title: "google-contacts skill: Create contact from screenshot"
+  priority: 12
+  description: |
+    Document workflow for creating contacts from screenshots of business cards,
+    email signatures, or any image containing contact information.
+
+    Workflow:
+    1. User provides screenshot path or says "from this screenshot"
+    2. Claude reads the image file using the Read tool
+    3. Claude extracts contact information from the image (name, phone, email, company, position)
+    4. Claude confirms extracted data with user
+    5. Claude executes google-contacts create command
+    6. Return confirmation with contact ID
+
+    SKILL.md should include:
+    - Screenshot reading workflow using Read tool
+    - Data extraction patterns from images
+    - Confirmation step before creation
+    - Common image sources (business cards, email signatures, LinkedIn)
+
+    User requests:
+    - "Create contact from this screenshot: /path/to/image.png"
+    - "Add the contact from this business card"
+    - "Extract contact from ~/Downloads/screenshot.png and add it"
+
+    Acceptance criteria:
+    - SKILL.md documents screenshot workflow
+    - Examples show image path handling
+    - Confirmation step is included before creation
+    - Handles various image sources
+  tests:
+  - SKILL.md contains screenshot workflow section
+  - SKILL.md shows how to use Read tool for images
+  - SKILL.md documents confirmation step
+  - SKILL.md handles ~/Downloads/ paths
+  passes: false
+
+- id: US-00013
+  title: "google-contacts skill: Search and retrieve contacts"
+  priority: 13
+  description: |
+    Document workflow for searching and retrieving contact information.
+
+    Search scenarios:
+    - "Find contact John" -> search by name
+    - "Search for contacts at Acme Corp" -> search by company
+    - "Who has phone number 0612345678" -> search by phone
+    - "Show me John Doe's contact" -> search + show if single result
+
+    SKILL.md should include:
+    - Search command usage
+    - Handling single vs multiple results
+    - Auto-show for single results
+    - Show command for detailed view
+
+    Show scenarios:
+    - "Show contact details for c123456789"
+    - "Get full info for John Doe" (after search)
+    - "What's John's phone number" -> search + extract specific field
+
+    Acceptance criteria:
+    - SKILL.md documents search workflow
+    - SKILL.md documents show command
+    - Examples for single and multiple results
+    - Field extraction from results documented
+  tests:
+  - SKILL.md contains search workflow section
+  - SKILL.md contains show command section
+  - SKILL.md handles single result auto-show
+  - SKILL.md shows field extraction examples
+  passes: false

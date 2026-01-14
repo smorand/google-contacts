@@ -469,3 +469,64 @@ Implemented unit tests for core CLI and service functionality without requiring 
 - `make test` runs `go test -v ./...` to find all test files
 
 ---
+
+## 2026-01-14 - US-00010 - google-contacts: Create skill in ~/.claude/skills
+
+**Status:** Completed successfully
+
+### What was implemented
+Verified and documented the Claude skill integration for google-contacts. The skill directory at `~/.claude/skills/google-contacts/` was already created with complete SKILL.md and symlink to the binary. Added documentation about the skill in both CLAUDE.md and README.md.
+
+### Files changed
+- **Modified:**
+  - `CLAUDE.md` - Added Claude Skill Integration section with skill structure, features, and symlink management
+  - `README.md` - Added Claude Skill Integration section with installation and usage examples
+
+### Skill structure verified
+```
+~/.claude/skills/google-contacts/
+├── SKILL.md           # Comprehensive skill definition (381 lines)
+└── scripts/
+    └── google-contacts  # Symlink to bin/google-contacts-linux-amd64
+```
+
+### SKILL.md contents verified
+- Proper frontmatter with `name` and `description` fields
+- Trigger phrases documented (create contact, search contact, show details, screenshot)
+- All CLI commands documented: create, search, show
+- Natural language parsing examples
+- Screenshot workflow with confirmation step
+- Error handling patterns
+- Authentication notes
+
+### Learnings
+
+**Claude skill structure:**
+- Skills are located in `~/.claude/skills/<skill-name>/`
+- SKILL.md uses YAML frontmatter with `name` and `description` fields
+- The `description` field controls when Claude loads the skill (trigger phrases)
+- Scripts can use symlinks to binaries for easier updates
+
+**Skill discovery:**
+- Claude automatically discovers skills in `~/.claude/skills/`
+- Skills appear in the Skill tool's "Available skills" list
+- The description in frontmatter is used for skill matching
+
+**Symlink management:**
+- Symlinks allow updating the binary without modifying skill configuration
+- Use absolute paths for symlinks: `ln -sf /absolute/path/to/binary scripts/binary`
+- After `make build`, the symlink continues to point to the correct binary
+
+**Documentation duplication:**
+- Skill documentation (SKILL.md) is separate from project documentation (README.md, CLAUDE.md)
+- Both should document the same commands but for different audiences:
+  - SKILL.md: For Claude AI to understand how to use the tool
+  - README.md: For human users to understand how to use the CLI directly
+  - CLAUDE.md: For AI developers working on the codebase
+
+**Bilingual skills:**
+- The SKILL.md is written in both French and English
+- This supports multilingual user interactions
+- Example triggers in both languages help Claude recognize requests
+
+---
