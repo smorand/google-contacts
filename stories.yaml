@@ -886,7 +886,7 @@
   - All create workflows include validation step
   - Screenshot workflow includes validation step
   - Natural language workflow includes validation step
-  passes: false
+  passes: true
 
 - id: US-00020
   title: "google-contacts skill: Document delete and update workflows"
