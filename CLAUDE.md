@@ -244,11 +244,12 @@ func TestExtractID(t *testing.T) {
   - `extractID()` - Resource name to ID extraction
   - `truncate()` - String truncation for table display
   - `formatTime()` - ISO 8601 timestamp formatting
+  - `parsePhones()` - Phone string parsing with type:number format
   - Field validation logic for create command
 
 - **Service types** (`internal/contacts/service_test.go`):
   - `extractID()` - Resource name parsing
-  - `ContactInput` validation
+  - `ContactInput` validation with multiple phones
   - `SearchResult` struct field access
   - `ContactDetails` with phone/email entries
   - Resource name normalization
@@ -289,15 +290,21 @@ The `Service` struct embeds `*people.Service` for full People API access.
 ### ContactInput and CreatedContact
 
 ```go
-// Input for creating a contact
+// Input for creating a contact (supports multiple phones)
 type ContactInput struct {
-    FirstName string  // Required
-    LastName  string  // Required
-    Phone     string  // Required
-    Email     string  // Optional
-    Company   string  // Optional
-    Position  string  // Optional
-    Notes     string  // Optional
+    FirstName string        // Required
+    LastName  string        // Required
+    Phones    []PhoneEntry  // Required (at least one)
+    Email     string        // Optional
+    Company   string        // Optional
+    Position  string        // Optional
+    Notes     string        // Optional
+}
+
+// PhoneEntry represents a phone with type label
+type PhoneEntry struct {
+    Value string  // e.g., "+33612345678"
+    Type  string  // mobile, work, home, main, other (default: mobile)
 }
 
 // Result of contact creation
@@ -306,6 +313,19 @@ type CreatedContact struct {
     DisplayName  string  // e.g., "John Doe"
 }
 ```
+
+### Phone Types
+
+Valid phone types for create/update commands:
+- `mobile` - Mobile phone (default if not specified)
+- `work` - Work phone
+- `home` - Home phone
+- `main` - Main phone
+- `other` - Other phone
+
+Phone format in CLI: `type:number` or just `number` (defaults to mobile)
+- Simple: `+33612345678` → mobile
+- Typed: `work:+33123456789` → work
 
 ### Common PersonFields
 
@@ -426,18 +446,31 @@ err := srv.DeleteContact(ctx, "people/c123456789")
 ```go
 // UpdateInput uses pointers to distinguish "not provided" from "empty value"
 type UpdateInput struct {
-    FirstName *string  // Optional - only update if non-nil
-    LastName  *string  // Optional
-    Phone     *string  // Optional - replaces first phone
-    Email     *string  // Optional - replaces first email
-    Company   *string  // Optional
-    Position  *string  // Optional
-    Notes     *string  // Optional
+    FirstName    *string       // Optional - only update if non-nil
+    LastName     *string       // Optional
+    Phone        *string       // Optional - replaces first phone (backward compat)
+    Phones       []PhoneEntry  // Optional - replaces ALL phones
+    AddPhones    []PhoneEntry  // Optional - add phones without removing existing
+    RemovePhones []string      // Optional - remove phones by value
+    Email        *string       // Optional - replaces first email
+    Company      *string       // Optional
+    Position     *string       // Optional
+    Notes        *string       // Optional
 }
 
 // UpdateContact merges changes with existing contact
 details, err := srv.UpdateContact(ctx, "c123456789", contacts.UpdateInput{
     FirstName: &newFirstName,  // Only this field will be updated
+})
+
+// Add a phone without removing existing
+details, err := srv.UpdateContact(ctx, "c123456789", contacts.UpdateInput{
+    AddPhones: []contacts.PhoneEntry{{Value: "+33123456789", Type: "work"}},
+})
+
+// Remove a specific phone by value
+details, err := srv.UpdateContact(ctx, "c123456789", contacts.UpdateInput{
+    RemovePhones: []string{"+33612345678"},
 })
 ```
 
@@ -447,6 +480,12 @@ details, err := srv.UpdateContact(ctx, "c123456789", contacts.UpdateInput{
 - Fetches current contact first to preserve unchanged fields
 - Returns updated `ContactDetails` for display
 - Only fields with non-nil values in `UpdateInput` are modified
+
+**Phone update options (in priority order):**
+1. `--phone` (or `-p`): Replaces first phone only (backward compatible)
+2. `--phones`: Replaces ALL phones with new ones
+3. `--add-phone`: Adds phone(s) without removing existing
+4. `--remove-phone`: Removes specific phone(s) by value
 
 **People API metadata:**
 - Metadata contains source information including creation/update times

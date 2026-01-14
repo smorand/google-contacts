@@ -28,7 +28,7 @@ var RootCmd = &cobra.Command{
 var (
 	createFirstName string
 	createLastName  string
-	createPhone     string
+	createPhones    []string // Multiple phones in format "type:number" or just "number"
 	createEmail     string
 	createCompany   string
 	createPosition  string
@@ -44,7 +44,10 @@ var (
 var (
 	updateFirstName string
 	updateLastName  string
-	updatePhone     string
+	updatePhone     string   // Backward compatible: replaces first phone
+	updatePhones    []string // Replaces all phones
+	updateAddPhones []string // Add phones without removing existing
+	updateRemPhones []string // Remove phones by value
 	updateEmail     string
 	updateCompany   string
 	updatePosition  string
@@ -69,7 +72,14 @@ var (
 Required fields:
   --firstname, -f: First name
   --lastname, -l:  Last name
-  --phone, -p:     Phone number
+  --phone, -p:     Phone number (can be repeated for multiple phones)
+
+Phone number format:
+  - Simple: +33612345678 (defaults to "mobile" type)
+  - With type: mobile:+33612345678
+  - Multiple: -p "mobile:+33612345678" -p "work:+33123456789"
+
+Phone types: mobile (default), work, home, main, other
 
 Recommended fields:
   --company, -c:   Company name
@@ -78,8 +88,14 @@ Optional fields:
   --email, -e:     Email address
   --position, -r:  Role/position at company
   --notes, -n:     Notes about the contact`,
-		Example: `  # Create contact with required fields only
+		Example: `  # Create contact with single phone (defaults to mobile)
   google-contacts create -f John -l Doe -p +33612345678
+
+  # Create contact with typed phone
+  google-contacts create -f John -l Doe -p "work:+33123456789"
+
+  # Create contact with multiple phones
+  google-contacts create -f John -l Doe -p "mobile:+33612345678" -p "work:+33123456789"
 
   # Create contact with all fields
   google-contacts create -f John -l Doe -p +33612345678 -c "Acme Inc" -r "CTO" -e john@acme.com -n "Met at conference"`,
@@ -175,10 +191,18 @@ The contact ID can be:
 
 Only the specified fields will be updated. Unspecified fields remain unchanged.
 
-Available fields:
+Phone management options:
+  --phone, -p:       Update primary phone (replaces first phone)
+  --phones:          Replace ALL phones (can be repeated)
+  --add-phone:       Add a phone without removing existing (can be repeated)
+  --remove-phone:    Remove a phone by value (can be repeated)
+
+Phone format: "type:number" or just "number" (defaults to mobile)
+Phone types: mobile (default), work, home, main, other
+
+Other fields:
   --firstname, -f: Update first name
   --lastname, -l:  Update last name
-  --phone, -p:     Update primary phone (replaces first phone)
   --email, -e:     Update primary email (replaces first email)
   --company, -c:   Update company name
   --position, -r:  Update role/position
@@ -186,8 +210,17 @@ Available fields:
 		Example: `  # Update only first name
   google-contacts update c123456789 --firstname "Jane"
 
-  # Update multiple fields
-  google-contacts update c123456789 -f "Jane" -l "Smith" -p "+33698765432"
+  # Update primary phone (backward compatible)
+  google-contacts update c123456789 -p "+33698765432"
+
+  # Replace all phones with new ones
+  google-contacts update c123456789 --phones "mobile:+33612345678" --phones "work:+33123456789"
+
+  # Add a work phone without removing existing
+  google-contacts update c123456789 --add-phone "work:+33123456789"
+
+  # Remove a specific phone
+  google-contacts update c123456789 --remove-phone "+33612345678"
 
   # Update company information
   google-contacts update c123456789 --company "New Corp" --position "CEO"`,
@@ -195,6 +228,41 @@ Available fields:
 		RunE: runUpdate,
 	}
 )
+
+// parsePhones parses phone strings in format "type:number" or just "number".
+// Valid types: mobile (default), work, home, main, other
+func parsePhones(phoneStrs []string) ([]contacts.PhoneEntry, error) {
+	validTypes := map[string]bool{
+		"mobile": true,
+		"work":   true,
+		"home":   true,
+		"main":   true,
+		"other":  true,
+	}
+
+	var phones []contacts.PhoneEntry
+	for _, ps := range phoneStrs {
+		var entry contacts.PhoneEntry
+		if idx := strings.Index(ps, ":"); idx > 0 {
+			// Format: type:number
+			phoneType := strings.ToLower(ps[:idx])
+			if !validTypes[phoneType] {
+				return nil, fmt.Errorf("invalid phone type '%s', valid types: mobile, work, home, main, other", phoneType)
+			}
+			entry.Type = phoneType
+			entry.Value = ps[idx+1:]
+		} else {
+			// Format: just number (defaults to mobile)
+			entry.Type = "mobile"
+			entry.Value = ps
+		}
+		if entry.Value == "" {
+			return nil, fmt.Errorf("phone number cannot be empty")
+		}
+		phones = append(phones, entry)
+	}
+	return phones, nil
+}
 
 func runCreate(cmd *cobra.Command, args []string) error {
 	// Validate required fields
@@ -204,8 +272,14 @@ func runCreate(cmd *cobra.Command, args []string) error {
 	if createLastName == "" {
 		return fmt.Errorf("last name is required (--lastname or -l)")
 	}
-	if createPhone == "" {
-		return fmt.Errorf("phone number is required (--phone or -p)")
+	if len(createPhones) == 0 {
+		return fmt.Errorf("at least one phone number is required (--phone or -p)")
+	}
+
+	// Parse phone numbers
+	phones, err := parsePhones(createPhones)
+	if err != nil {
+		return fmt.Errorf("invalid phone format: %w", err)
 	}
 
 	ctx := context.Background()
@@ -220,7 +294,7 @@ func runCreate(cmd *cobra.Command, args []string) error {
 	input := contacts.ContactInput{
 		FirstName: createFirstName,
 		LastName:  createLastName,
-		Phone:     createPhone,
+		Phones:    phones,
 		Email:     createEmail,
 		Company:   createCompany,
 		Position:  createPosition,
@@ -360,10 +434,37 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 		input.LastName = &updateLastName
 		hasUpdates = true
 	}
+
+	// Phone update options (in priority order)
 	if cmd.Flags().Changed("phone") {
+		// Backward compatible: replaces first phone
 		input.Phone = &updatePhone
 		hasUpdates = true
 	}
+	if len(updatePhones) > 0 {
+		// Replaces all phones
+		phones, err := parsePhones(updatePhones)
+		if err != nil {
+			return fmt.Errorf("invalid --phones format: %w", err)
+		}
+		input.Phones = phones
+		hasUpdates = true
+	}
+	if len(updateAddPhones) > 0 {
+		// Add phones without removing existing
+		phones, err := parsePhones(updateAddPhones)
+		if err != nil {
+			return fmt.Errorf("invalid --add-phone format: %w", err)
+		}
+		input.AddPhones = phones
+		hasUpdates = true
+	}
+	if len(updateRemPhones) > 0 {
+		// Remove phones by value
+		input.RemovePhones = updateRemPhones
+		hasUpdates = true
+	}
+
 	if cmd.Flags().Changed("email") {
 		input.Email = &updateEmail
 		hasUpdates = true
@@ -682,7 +783,7 @@ func Init() {
 	// Setup create command flags
 	createCmd.Flags().StringVarP(&createFirstName, "firstname", "f", "", "First name (required)")
 	createCmd.Flags().StringVarP(&createLastName, "lastname", "l", "", "Last name (required)")
-	createCmd.Flags().StringVarP(&createPhone, "phone", "p", "", "Phone number (required)")
+	createCmd.Flags().StringArrayVarP(&createPhones, "phone", "p", nil, "Phone number (can be repeated, format: 'type:number' or 'number')")
 	createCmd.Flags().StringVarP(&createEmail, "email", "e", "", "Email address")
 	createCmd.Flags().StringVarP(&createCompany, "company", "c", "", "Company name")
 	createCmd.Flags().StringVarP(&createPosition, "position", "r", "", "Role/position at company")
@@ -694,7 +795,10 @@ func Init() {
 	// Setup update command flags
 	updateCmd.Flags().StringVarP(&updateFirstName, "firstname", "f", "", "First name")
 	updateCmd.Flags().StringVarP(&updateLastName, "lastname", "l", "", "Last name")
-	updateCmd.Flags().StringVarP(&updatePhone, "phone", "p", "", "Phone number")
+	updateCmd.Flags().StringVarP(&updatePhone, "phone", "p", "", "Primary phone (replaces first phone)")
+	updateCmd.Flags().StringArrayVar(&updatePhones, "phones", nil, "Replace ALL phones (can be repeated, format: 'type:number')")
+	updateCmd.Flags().StringArrayVar(&updateAddPhones, "add-phone", nil, "Add phone without removing existing (can be repeated)")
+	updateCmd.Flags().StringArrayVar(&updateRemPhones, "remove-phone", nil, "Remove phone by value (can be repeated)")
 	updateCmd.Flags().StringVarP(&updateEmail, "email", "e", "", "Email address")
 	updateCmd.Flags().StringVarP(&updateCompany, "company", "c", "", "Company name")
 	updateCmd.Flags().StringVarP(&updatePosition, "position", "r", "", "Role/position at company")

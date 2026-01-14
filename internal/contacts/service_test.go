@@ -69,20 +69,23 @@ func TestContactInput_Validation(t *testing.T) {
 			input: ContactInput{
 				FirstName: "John",
 				LastName:  "Doe",
-				Phone:     "+33612345678",
+				Phones:    []PhoneEntry{{Value: "+33612345678", Type: "mobile"}},
 			},
 			isValid: true,
 		},
 		{
-			name: "valid input with all fields",
+			name: "valid input with multiple phones",
 			input: ContactInput{
 				FirstName: "John",
 				LastName:  "Doe",
-				Phone:     "+33612345678",
-				Email:     "john@example.com",
-				Company:   "Acme Inc",
-				Position:  "CTO",
-				Notes:     "Met at conference",
+				Phones: []PhoneEntry{
+					{Value: "+33612345678", Type: "mobile"},
+					{Value: "+33123456789", Type: "work"},
+				},
+				Email:    "john@example.com",
+				Company:  "Acme Inc",
+				Position: "CTO",
+				Notes:    "Met at conference",
 			},
 			isValid: true,
 		},
@@ -90,7 +93,7 @@ func TestContactInput_Validation(t *testing.T) {
 			name: "missing first name",
 			input: ContactInput{
 				LastName: "Doe",
-				Phone:    "+33612345678",
+				Phones:   []PhoneEntry{{Value: "+33612345678", Type: "mobile"}},
 			},
 			isValid: false,
 		},
@@ -98,7 +101,7 @@ func TestContactInput_Validation(t *testing.T) {
 			name: "missing last name",
 			input: ContactInput{
 				FirstName: "John",
-				Phone:     "+33612345678",
+				Phones:    []PhoneEntry{{Value: "+33612345678", Type: "mobile"}},
 			},
 			isValid: false,
 		},
@@ -107,6 +110,15 @@ func TestContactInput_Validation(t *testing.T) {
 			input: ContactInput{
 				FirstName: "John",
 				LastName:  "Doe",
+			},
+			isValid: false,
+		},
+		{
+			name: "empty phones slice",
+			input: ContactInput{
+				FirstName: "John",
+				LastName:  "Doe",
+				Phones:    []PhoneEntry{},
 			},
 			isValid: false,
 		},
@@ -130,7 +142,7 @@ func TestContactInput_Validation(t *testing.T) {
 // validateContactInput validates that required fields are present.
 // This function is for testing validation logic without API calls.
 func validateContactInput(input ContactInput) bool {
-	return input.FirstName != "" && input.LastName != "" && input.Phone != ""
+	return input.FirstName != "" && input.LastName != "" && len(input.Phones) > 0
 }
 
 func TestSearchResult_Fields(t *testing.T) {

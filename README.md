@@ -73,14 +73,23 @@ google-contacts --version
 Create a new contact with required and optional fields:
 
 ```bash
-# Create with required fields only
+# Create with single phone (defaults to mobile)
 google-contacts create -f John -l Doe -p +33612345678
+
+# Create with typed phone
+google-contacts create -f John -l Doe -p "work:+33123456789"
+
+# Create with multiple phones
+google-contacts create -f John -l Doe \
+  -p "mobile:+33612345678" \
+  -p "work:+33123456789"
 
 # Create with all fields
 google-contacts create \
   --firstname John \
   --lastname Doe \
-  --phone +33612345678 \
+  --phone "mobile:+33612345678" \
+  --phone "work:+33123456789" \
   --company "Acme Inc" \
   --position "CTO" \
   --email john@acme.com \
@@ -92,11 +101,18 @@ google-contacts create \
 |------|-------|----------|-------------|
 | `--firstname` | `-f` | Yes | First name |
 | `--lastname` | `-l` | Yes | Last name |
-| `--phone` | `-p` | Yes | Phone number |
+| `--phone` | `-p` | Yes | Phone number (can be repeated) |
 | `--company` | `-c` | No | Company name |
 | `--position` | `-r` | No | Role/position at company |
 | `--email` | `-e` | No | Email address |
 | `--notes` | `-n` | No | Notes about the contact |
+
+**Phone format:**
+- Simple: `+33612345678` (defaults to "mobile" type)
+- With type: `mobile:+33612345678`, `work:+33123456789`
+- Multiple: Use `-p` flag multiple times
+
+**Phone types:** `mobile` (default), `work`, `home`, `main`, `other`
 
 ### Search Contacts
 
@@ -185,28 +201,47 @@ Update an existing contact. Only the specified fields will be modified:
 # Update only first name
 google-contacts update c123456789 --firstname "Jane"
 
-# Update multiple fields
-google-contacts update c123456789 -f "Jane" -l "Smith" -p "+33698765432"
+# Update primary phone (backward compatible, replaces first phone)
+google-contacts update c123456789 -p "+33698765432"
+
+# Replace ALL phones with new ones
+google-contacts update c123456789 \
+  --phones "mobile:+33612345678" \
+  --phones "work:+33123456789"
+
+# Add a work phone without removing existing phones
+google-contacts update c123456789 --add-phone "work:+33123456789"
+
+# Remove a specific phone by value
+google-contacts update c123456789 --remove-phone "+33612345678"
 
 # Update company information
 google-contacts update c123456789 --company "New Corp" --position "CEO"
 ```
 
-**Flags:**
+**Basic Flags:**
 | Flag | Short | Description |
 |------|-------|-------------|
 | `--firstname` | `-f` | Update first name |
 | `--lastname` | `-l` | Update last name |
-| `--phone` | `-p` | Update primary phone (replaces first phone) |
 | `--email` | `-e` | Update primary email (replaces first email) |
 | `--company` | `-c` | Update company name |
 | `--position` | `-r` | Update role/position |
 | `--notes` | `-n` | Update notes |
 
+**Phone Management Flags:**
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--phone` | `-p` | Update primary phone (replaces first phone only) |
+| `--phones` | | Replace ALL phones (can be repeated) |
+| `--add-phone` | | Add phone without removing existing (can be repeated) |
+| `--remove-phone` | | Remove specific phone by value (can be repeated) |
+
 **Behavior:**
 - Only specified fields are updated; unspecified fields remain unchanged
 - At least one field must be specified
 - Displays before/after summary showing changes
+- Phone operations can be combined (e.g., add one and remove another)
 
 **Example output:**
 ```
