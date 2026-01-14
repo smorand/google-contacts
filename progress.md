@@ -1062,3 +1062,62 @@ Updated SKILL.md to document the delete and update commands with complete workfl
 - Features list in CLAUDE.md is for developers; SKILL.md workflows are for Claude
 
 ---
+
+## 2026-01-14 - US-00021 - google-contacts skill: Document multiple phones/emails support
+
+**Status:** Completed successfully
+
+### What was implemented
+Updated SKILL.md to comprehensively document support for multiple phone numbers and email addresses with types/labels in both create and update commands.
+
+### Files changed
+- **Modified:**
+  - `~/.claude/skills/google-contacts/SKILL.md` - Added phone types table, email types table, multiple phones/emails examples for create and update commands
+  - `stories.yaml` - Updated US-00021 `passes: false` to `passes: true`
+  - `progress.md` - Added this entry
+
+### SKILL.md sections added/updated
+
+**New documentation in "Créer un contact" section:**
+- "Types de téléphones supportés" table with all 5 types: mobile (default), work, home, main, other
+- "Types d'emails supportés" table with all 3 types: work (default), home, other
+- "Exemples avec plusieurs téléphones et emails" - 3 comprehensive CLI examples
+
+**New documentation in "Modifier un contact" section:**
+- "Types et formats" reference to reuse create command types
+- "Gestion avancée des téléphones" - Examples for --add-phone, --remove-phone, --phones
+- "Gestion avancée des emails" - Examples for --add-email, --remove-email, --emails
+
+**Updated "Exemples de demandes de modification" section:**
+- Split into 3 sub-tables: "Modifications de téléphones", "Modifications d'emails", "Autres modifications"
+- Added natural language → CLI action mappings for all phone/email operations
+
+### Learnings
+
+**Documentation structure for multi-value fields:**
+- Use tables for type definitions (Type | Description | Example format)
+- Provide both simple and advanced examples in separate sections
+- Reference types across sections ("same types as create apply") to reduce duplication
+
+**CLI flag documentation patterns:**
+- Document backward-compatible flags first (-p, -e for single value replacement)
+- Then document advanced operations (--phones/--emails for full replacement)
+- Finally show additive/subtractive operations (--add-*, --remove-*)
+- This progression from simple to complex helps users gradually learn
+
+**Natural language parsing tables:**
+- Organizing by operation type (phones, emails, other) improves scanability
+- Each row should show exact phrasing variations users might use
+- Include common synonyms: "ajoute", "supprime", "remplace", "change"
+
+**Validation prompt consistency:**
+- Multiple phones/emails format already documented in earlier story (US-00019)
+- Bullet-point format (• type : value) works well for displaying lists
+- Type labels should be shown in the validation to ensure transparency
+
+**SKILL.md size considerations:**
+- The file is now ~1000 lines and comprehensive
+- Good organization with clear section headers makes navigation easy
+- Consider future split into multiple files if documentation grows further
+
+---

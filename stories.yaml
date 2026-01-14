@@ -982,7 +982,7 @@
   - Update command examples with --add-phone
   - Update command examples with --add-email
   - Validation prompt format includes multiple entries
-  passes: false
+  passes: true
 
 # =============================================================================
 # DEPLOYMENT NOTE
