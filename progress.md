@@ -888,3 +888,55 @@ Added support for multiple phone numbers with types (labels) in both create and 
 - Test empty input
 
 ---
+
+## 2026-01-14 - US-00018 - google-contacts skill: Name recognition improvements
+
+**Status:** Completed successfully
+
+### What was implemented
+Added a comprehensive "Reconnaissance des noms" (Name Recognition) section to SKILL.md documenting heuristics for identifying first names vs last names with confidence levels.
+
+### Files changed
+- **Modified:**
+  - `~/.claude/skills/google-contacts/SKILL.md` - Added Name Recognition section (lines 335-432)
+  - `stories.yaml` - Updated US-00018 `passes: false` to `passes: true`
+  - `progress.md` - Added this entry
+
+### Documentation added
+
+**Name recognition rules:**
+1. **ALL CAPS rule (HIGH confidence >90%)** - Word in ALL CAPS is likely the family name
+   - Example: "Sebastien LAURENT" → firstname=Sebastien, lastname=Laurent
+2. **French order (MEDIUM confidence 60-90%)** - Default firstname-lastname order
+   - Example: "Jean Dupont" → firstname=Jean, lastname=Dupont
+3. **Asian/ambiguous names (LOW confidence <60%)** - Multiple possibilities
+   - Example: "Takeshi Yamamoto" → could be either order
+4. **Multiple words rule** - Compound first names are more common
+
+**Confidence levels and actions:**
+- HIGH: Present interpretation + ask confirmation
+- MEDIUM: Present with explanation + ask confirmation
+- LOW: Present options + ask user to choose
+
+### Learnings
+
+**Name recognition heuristics:**
+- ALL CAPS is a strong indicator of family name in European contexts (particularly French)
+- This convention is common in formal documents, business cards, and administrative systems
+- The heuristic works because ALL CAPS is intentionally used to distinguish the family name
+
+**Cultural context matters:**
+- French names typically follow firstname-lastname order
+- Asian names often follow lastname-firstname order
+- Without cultural context, confidence should be LOW
+
+**Probabilistic reasoning in skills:**
+- Skills should express uncertainty when it exists
+- Confidence levels help users understand the reasoning
+- Even with HIGH confidence, validation should still be required
+
+**SKILL.md structure:**
+- Adding cross-references between sections (e.g., "see Validation section") helps maintain consistency
+- The section references a "Validation obligatoire avant création" section that will be added in US-00019
+
+---

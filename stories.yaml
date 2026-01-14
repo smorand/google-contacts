@@ -747,7 +747,7 @@
   - update --add-email adds without removing
   - update --remove-email removes specific email
   - Google Contacts web UI shows all emails with correct labels
-  passes: false
+  passes: true
 
 # =============================================================================
 # PHASE 7: SKILL IMPROVEMENTS - NAME RECOGNITION & VALIDATION
@@ -828,7 +828,7 @@
   - SKILL.md documents confidence levels (HIGH/MEDIUM/LOW)
   - SKILL.md shows probabilistic reasoning examples
   - SKILL.md emphasizes confirmation is ALWAYS required
-  passes: false
+  passes: true
 
 - id: US-00019
   title: "google-contacts skill: Mandatory validation before contact creation"
