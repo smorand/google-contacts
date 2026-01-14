@@ -4,6 +4,7 @@ package contacts
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"google.golang.org/api/option"
@@ -51,9 +52,9 @@ func (s *Service) TestConnection(ctx context.Context) error {
 type ContactInput struct {
 	FirstName string
 	LastName  string
-	Phones    []PhoneEntry    // Multiple phones with types
-	Emails    []EmailEntry    // Multiple emails with types
-	Addresses []AddressEntry  // Multiple addresses with types
+	Phones    []PhoneEntry   // Multiple phones with types
+	Emails    []EmailEntry   // Multiple emails with types
+	Addresses []AddressEntry // Multiple addresses with types
 	Company   string
 	Position  string
 	Notes     string
@@ -93,6 +94,17 @@ type EmailEntry struct {
 type AddressEntry struct {
 	Value string // Formatted address string
 	Type  string // home, work, other
+}
+
+// StructuredAddress represents a parsed postal address with structured fields.
+type StructuredAddress struct {
+	FormattedValue string // Full address as a single string
+	StreetAddress  string // Street name and number
+	City           string // City name
+	PostalCode     string // Postal/ZIP code
+	Region         string // State/Province (optional)
+	Country        string // Country name
+	CountryCode    string // ISO 3166-1 alpha-2 country code (optional)
 }
 
 // ContactDetails contains full information for a single contact.
@@ -184,6 +196,255 @@ func formatBirthday(birthday *people.Birthday) string {
 	return fmt.Sprintf("%04d-%02d-%02d", d.Year, d.Month, d.Day)
 }
 
+// Regular expression to match French postal codes (5 digits)
+var frenchPostalCodeRegex = regexp.MustCompile(`\b(\d{5})\b`)
+
+// ParseAddress parses various address formats into a structured address.
+// Supported formats:
+// - Simple: "123 Rue Example, Paris, 75001, France"
+// - French: "123 Rue Example, 75001 Paris" (auto-detects French postal code format)
+// - French: "10 Rue Test, Paris 75001, France"
+// - Structured: "street=123 Rue Example;city=Paris;postal=75001;country=France"
+//
+// Returns the structured address with both formatted value and structured fields.
+func ParseAddress(address string) *StructuredAddress {
+	if address == "" {
+		return nil
+	}
+
+	// Check for structured syntax (semicolon-separated key=value pairs)
+	if strings.Contains(address, ";") && strings.Contains(address, "=") {
+		return parseStructuredAddress(address)
+	}
+
+	// Try to parse as a French address or general format
+	return parseFormattedAddress(address)
+}
+
+// parseStructuredAddress parses "key=value;key=value" format.
+func parseStructuredAddress(address string) *StructuredAddress {
+	result := &StructuredAddress{}
+	parts := strings.Split(address, ";")
+
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if idx := strings.Index(part, "="); idx > 0 {
+			key := strings.ToLower(strings.TrimSpace(part[:idx]))
+			value := strings.TrimSpace(part[idx+1:])
+			switch key {
+			case "street", "streetaddress":
+				result.StreetAddress = value
+			case "city":
+				result.City = value
+			case "postal", "postalcode", "zip":
+				result.PostalCode = value
+			case "region", "state", "province":
+				result.Region = value
+			case "country":
+				result.Country = value
+			case "countrycode":
+				result.CountryCode = value
+			}
+		}
+	}
+
+	// Build formatted value from structured fields
+	result.FormattedValue = buildFormattedAddress(result)
+	return result
+}
+
+// buildFormattedAddress creates a formatted address string from structured fields.
+func buildFormattedAddress(addr *StructuredAddress) string {
+	var parts []string
+	if addr.StreetAddress != "" {
+		parts = append(parts, addr.StreetAddress)
+	}
+	if addr.PostalCode != "" && addr.City != "" {
+		parts = append(parts, fmt.Sprintf("%s %s", addr.PostalCode, addr.City))
+	} else if addr.City != "" {
+		parts = append(parts, addr.City)
+	} else if addr.PostalCode != "" {
+		parts = append(parts, addr.PostalCode)
+	}
+	if addr.Region != "" {
+		parts = append(parts, addr.Region)
+	}
+	if addr.Country != "" {
+		parts = append(parts, addr.Country)
+	}
+	return strings.Join(parts, ", ")
+}
+
+// parseFormattedAddress parses comma-separated address formats.
+// Handles various patterns including French addresses.
+func parseFormattedAddress(address string) *StructuredAddress {
+	result := &StructuredAddress{
+		FormattedValue: address,
+	}
+
+	// Split by comma
+	parts := strings.Split(address, ",")
+	for i := range parts {
+		parts[i] = strings.TrimSpace(parts[i])
+	}
+
+	if len(parts) == 0 {
+		return result
+	}
+
+	// Try to find French postal code (5 digits) and extract city
+	postalMatch := frenchPostalCodeRegex.FindStringSubmatch(address)
+
+	if len(postalMatch) > 0 {
+		result.PostalCode = postalMatch[1]
+		// Parse as French address
+		parseFrenchAddress(result, parts)
+	} else {
+		// Parse as generic address
+		parseGenericAddress(result, parts)
+	}
+
+	return result
+}
+
+// parseFrenchAddress extracts structured fields from French address formats.
+// French patterns:
+// - "street, postal city" (e.g., "10 Rue Test, 75001 Paris")
+// - "street, city postal" (e.g., "10 Rue Test, Paris 75001")
+// - "street, postal city, country" (e.g., "10 Rue Test, 75001 Paris, France")
+// - "street, city, postal, country" (e.g., "10 Rue Test, Paris, 75001, France")
+func parseFrenchAddress(result *StructuredAddress, parts []string) {
+	if len(parts) == 0 {
+		return
+	}
+
+	// First part is typically the street
+	result.StreetAddress = parts[0]
+
+	// Look for the part containing the postal code
+	postalIdx := -1
+	for i, part := range parts {
+		if frenchPostalCodeRegex.MatchString(part) {
+			postalIdx = i
+			break
+		}
+	}
+
+	if postalIdx == -1 {
+		return
+	}
+
+	postalPart := parts[postalIdx]
+
+	// Extract city from the postal code part
+	// Pattern 1: "75001 Paris" - postal code before city
+	// Pattern 2: "Paris 75001" - postal code after city
+	postalLoc := frenchPostalCodeRegex.FindStringIndex(postalPart)
+	if postalLoc != nil {
+		before := strings.TrimSpace(postalPart[:postalLoc[0]])
+		after := strings.TrimSpace(postalPart[postalLoc[1]:])
+
+		if before != "" && after == "" {
+			// "Paris 75001" pattern - city is before postal code
+			result.City = before
+		} else if after != "" && before == "" {
+			// "75001 Paris" pattern - city is after postal code
+			result.City = after
+		} else if after != "" {
+			// "75001 Paris" is more common in France
+			result.City = after
+		}
+	}
+
+	// If city is still empty, try to extract from parts
+	if result.City == "" {
+		// Check if postal code is standalone and city is in another part
+		for i, part := range parts {
+			if i != postalIdx && i != 0 { // Skip street and postal part
+				// If this part is just 5 digits, it's just the postal code
+				if part == result.PostalCode {
+					continue
+				}
+				// This might be the city
+				if !frenchPostalCodeRegex.MatchString(part) {
+					// Check if it's not a country (common countries)
+					lowerPart := strings.ToLower(part)
+					if lowerPart != "france" && lowerPart != "fr" {
+						result.City = part
+					}
+				}
+			}
+		}
+	}
+
+	// Look for country (typically last part)
+	if len(parts) > postalIdx+1 {
+		lastPart := strings.TrimSpace(parts[len(parts)-1])
+		lowerLast := strings.ToLower(lastPart)
+		if lowerLast == "france" || lowerLast == "fr" {
+			result.Country = lastPart
+			if lowerLast == "fr" {
+				result.CountryCode = "FR"
+			}
+		}
+	}
+
+	// If no country but French postal code, assume France
+	if result.Country == "" && result.PostalCode != "" {
+		result.Country = "France"
+		result.CountryCode = "FR"
+	}
+}
+
+// parseGenericAddress extracts structured fields from generic address formats.
+// Generic pattern: "street, city, postal, country"
+func parseGenericAddress(result *StructuredAddress, parts []string) {
+	switch len(parts) {
+	case 1:
+		// Just street or full address
+		result.StreetAddress = parts[0]
+	case 2:
+		// street, city OR street, city postal
+		result.StreetAddress = parts[0]
+		result.City = parts[1]
+	case 3:
+		// street, city, postal OR street, city, country
+		result.StreetAddress = parts[0]
+		result.City = parts[1]
+		// Check if third part looks like a postal code (digits) or country
+		if isPostalCode(parts[2]) {
+			result.PostalCode = parts[2]
+		} else {
+			result.Country = parts[2]
+		}
+	case 4:
+		// street, city, postal, country
+		result.StreetAddress = parts[0]
+		result.City = parts[1]
+		result.PostalCode = parts[2]
+		result.Country = parts[3]
+	default:
+		// 5+ parts: street, city, region, postal, country
+		result.StreetAddress = parts[0]
+		result.City = parts[1]
+		result.Region = parts[2]
+		result.PostalCode = parts[3]
+		if len(parts) > 4 {
+			result.Country = parts[4]
+		}
+	}
+}
+
+// isPostalCode checks if a string looks like a postal code (contains digits).
+func isPostalCode(s string) bool {
+	for _, c := range s {
+		if c >= '0' && c <= '9' {
+			return true
+		}
+	}
+	return false
+}
+
 // CreateContact creates a new contact in Google Contacts.
 // Returns the created contact's resource name and display name.
 func (s *Service) CreateContact(ctx context.Context, input ContactInput) (*CreatedContact, error) {
@@ -246,16 +507,32 @@ func (s *Service) CreateContact(ctx context.Context, input ContactInput) (*Creat
 		}
 	}
 
-	// Add addresses (optional, with types)
+	// Add addresses (optional, with types) - using structured parsing
 	for _, addr := range input.Addresses {
 		addrType := addr.Type
 		if addrType == "" {
 			addrType = "home"
 		}
-		person.Addresses = append(person.Addresses, &people.Address{
-			FormattedValue: addr.Value,
-			Type:           addrType,
-		})
+
+		// Parse address to extract structured fields
+		structured := ParseAddress(addr.Value)
+		peopleAddr := &people.Address{
+			Type: addrType,
+		}
+
+		if structured != nil {
+			peopleAddr.FormattedValue = structured.FormattedValue
+			peopleAddr.StreetAddress = structured.StreetAddress
+			peopleAddr.City = structured.City
+			peopleAddr.PostalCode = structured.PostalCode
+			peopleAddr.Region = structured.Region
+			peopleAddr.Country = structured.Country
+			peopleAddr.CountryCode = structured.CountryCode
+		} else {
+			peopleAddr.FormattedValue = addr.Value
+		}
+
+		person.Addresses = append(person.Addresses, peopleAddr)
 	}
 
 	// Create the contact
@@ -603,7 +880,7 @@ func (s *Service) UpdateContact(ctx context.Context, resourceName string, input 
 		updateFields = append(updateFields, "emailAddresses")
 	}
 
-	// Handle address updates (multiple options available)
+	// Handle address updates (multiple options available) - using structured parsing
 	addressUpdated := false
 
 	// Option 1: Addresses slice replaces all addresses
@@ -614,10 +891,26 @@ func (s *Service) UpdateContact(ctx context.Context, resourceName string, input 
 			if addrType == "" {
 				addrType = "home"
 			}
-			current.Addresses = append(current.Addresses, &people.Address{
-				FormattedValue: addr.Value,
-				Type:           addrType,
-			})
+
+			// Parse address to extract structured fields
+			structured := ParseAddress(addr.Value)
+			peopleAddr := &people.Address{
+				Type: addrType,
+			}
+
+			if structured != nil {
+				peopleAddr.FormattedValue = structured.FormattedValue
+				peopleAddr.StreetAddress = structured.StreetAddress
+				peopleAddr.City = structured.City
+				peopleAddr.PostalCode = structured.PostalCode
+				peopleAddr.Region = structured.Region
+				peopleAddr.Country = structured.Country
+				peopleAddr.CountryCode = structured.CountryCode
+			} else {
+				peopleAddr.FormattedValue = addr.Value
+			}
+
+			current.Addresses = append(current.Addresses, peopleAddr)
 		}
 		addressUpdated = true
 	}
@@ -629,10 +922,26 @@ func (s *Service) UpdateContact(ctx context.Context, resourceName string, input 
 			if addrType == "" {
 				addrType = "home"
 			}
-			current.Addresses = append(current.Addresses, &people.Address{
-				FormattedValue: addr.Value,
-				Type:           addrType,
-			})
+
+			// Parse address to extract structured fields
+			structured := ParseAddress(addr.Value)
+			peopleAddr := &people.Address{
+				Type: addrType,
+			}
+
+			if structured != nil {
+				peopleAddr.FormattedValue = structured.FormattedValue
+				peopleAddr.StreetAddress = structured.StreetAddress
+				peopleAddr.City = structured.City
+				peopleAddr.PostalCode = structured.PostalCode
+				peopleAddr.Region = structured.Region
+				peopleAddr.Country = structured.Country
+				peopleAddr.CountryCode = structured.CountryCode
+			} else {
+				peopleAddr.FormattedValue = addr.Value
+			}
+
+			current.Addresses = append(current.Addresses, peopleAddr)
 		}
 		addressUpdated = true
 	}

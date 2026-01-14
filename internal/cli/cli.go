@@ -26,15 +26,15 @@ var RootCmd = &cobra.Command{
 
 // Create command flags
 var (
-	createFirstName  string
-	createLastName   string
-	createPhones     []string // Multiple phones in format "type:number" or just "number"
-	createEmails     []string // Multiple emails in format "type:email" or just "email"
-	createAddresses  []string // Multiple addresses in format "type:address" or just "address"
-	createCompany    string
-	createPosition   string
-	createNotes      string
-	createBirthday   string // Format: YYYY-MM-DD or --MM-DD
+	createFirstName string
+	createLastName  string
+	createPhones    []string // Multiple phones in format "type:number" or just "number"
+	createEmails    []string // Multiple emails in format "type:email" or just "email"
+	createAddresses []string // Multiple addresses in format "type:address" or just "address"
+	createCompany   string
+	createPosition  string
+	createNotes     string
+	createBirthday  string // Format: YYYY-MM-DD or --MM-DD
 )
 
 // Delete command flags
