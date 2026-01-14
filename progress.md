@@ -1007,3 +1007,58 @@ Added comprehensive mandatory validation workflow documentation to SKILL.md to e
 - gofmt may still run during `make check` and format code
 
 ---
+
+## 2026-01-14 - US-00020 - google-contacts skill: Document delete and update workflows
+
+**Status:** Completed successfully
+
+### What was implemented
+Updated SKILL.md to document the delete and update commands with complete workflows, including natural language examples and safety considerations.
+
+### Files changed
+- **Modified:**
+  - `~/.claude/skills/google-contacts/SKILL.md` - Added sections 5 (Modifier) and 6 (Supprimer), Workflows 5 and 6
+  - `CLAUDE.md` - Added "Contact update" and "Contact deletion" to skill features list
+  - `stories.yaml` - Updated US-00020 `passes: false` to `passes: true`
+  - `progress.md` - Added this entry
+
+### SKILL.md sections added
+
+**New sections in "Opérations disponibles":**
+- Section 5: Modifier un contact - Full update command documentation with flags table
+- Section 6: Supprimer un contact - Delete command documentation with safety notes
+
+**New workflows in "Workflows courants":**
+- Workflow 5: Modifier un contact - Natural language update with before/after display
+- Workflow 6: Supprimer un contact - Delete with mandatory confirmation and multiple results handling
+
+**Additional content:**
+- Examples table for update modifications (phone, email, company, etc.)
+- Precautions for deletion (4 safety rules)
+- Undo guidance for accidental deletions
+
+### Learnings
+
+**Skill workflow documentation patterns:**
+- Update workflows should show before/after comparison for user verification
+- Delete workflows must emphasize irreversibility and always require confirmation
+- Include examples for common variations (single vs multiple matches)
+- Provide recovery guidance even when true recovery isn't possible
+
+**Natural language examples importance:**
+- Tables with "User request → CLI action" help Claude understand mappings
+- Cover various phrasings: "change", "update", "modify", "correct" for updates
+- Cover various phrasings: "delete", "remove", "suppress" for deletions
+
+**Safety-first documentation:**
+- Mark warnings visibly with ⚠️ emoji
+- Explain WHY confirmation is required, not just that it's required
+- Show exact CLI commands with `--force` flag but explain its risks
+- Include multiple-result scenarios to prevent accidental deletions
+
+**Skill feature consistency:**
+- When adding workflows to SKILL.md, also update CLAUDE.md's "Skill Features" list
+- Keeps the project documentation synchronized across both files
+- Features list in CLAUDE.md is for developers; SKILL.md workflows are for Claude
+
+---
