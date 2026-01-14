@@ -291,3 +291,128 @@ func findSubstring(s, substr string) bool {
 	}
 	return false
 }
+
+func TestParsePhones(t *testing.T) {
+	tests := []struct {
+		name        string
+		input       []string
+		wantPhones  int
+		wantTypes   []string
+		wantValues  []string
+		wantErr     bool
+		errContains string
+	}{
+		{
+			name:       "single phone without type",
+			input:      []string{"+33612345678"},
+			wantPhones: 1,
+			wantTypes:  []string{"mobile"},
+			wantValues: []string{"+33612345678"},
+			wantErr:    false,
+		},
+		{
+			name:       "single phone with mobile type",
+			input:      []string{"mobile:+33612345678"},
+			wantPhones: 1,
+			wantTypes:  []string{"mobile"},
+			wantValues: []string{"+33612345678"},
+			wantErr:    false,
+		},
+		{
+			name:       "single phone with work type",
+			input:      []string{"work:+33123456789"},
+			wantPhones: 1,
+			wantTypes:  []string{"work"},
+			wantValues: []string{"+33123456789"},
+			wantErr:    false,
+		},
+		{
+			name:       "multiple phones with types",
+			input:      []string{"mobile:+33612345678", "work:+33123456789", "home:+33555123456"},
+			wantPhones: 3,
+			wantTypes:  []string{"mobile", "work", "home"},
+			wantValues: []string{"+33612345678", "+33123456789", "+33555123456"},
+			wantErr:    false,
+		},
+		{
+			name:       "mixed with and without types",
+			input:      []string{"+33612345678", "work:+33123456789"},
+			wantPhones: 2,
+			wantTypes:  []string{"mobile", "work"},
+			wantValues: []string{"+33612345678", "+33123456789"},
+			wantErr:    false,
+		},
+		{
+			name:       "main type",
+			input:      []string{"main:+33123456789"},
+			wantPhones: 1,
+			wantTypes:  []string{"main"},
+			wantValues: []string{"+33123456789"},
+			wantErr:    false,
+		},
+		{
+			name:       "other type",
+			input:      []string{"other:+33123456789"},
+			wantPhones: 1,
+			wantTypes:  []string{"other"},
+			wantValues: []string{"+33123456789"},
+			wantErr:    false,
+		},
+		{
+			name:        "invalid type",
+			input:       []string{"fax:+33123456789"},
+			wantErr:     true,
+			errContains: "invalid phone type",
+		},
+		{
+			name:        "empty phone value",
+			input:       []string{"mobile:"},
+			wantErr:     true,
+			errContains: "phone number cannot be empty",
+		},
+		{
+			name:       "type case insensitive",
+			input:      []string{"WORK:+33123456789"},
+			wantPhones: 1,
+			wantTypes:  []string{"work"},
+			wantValues: []string{"+33123456789"},
+			wantErr:    false,
+		},
+		{
+			name:       "empty input",
+			input:      []string{},
+			wantPhones: 0,
+			wantErr:    false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			phones, err := parsePhones(tc.input)
+			if tc.wantErr {
+				if err == nil {
+					t.Errorf("parsePhones() expected error containing %q, got nil", tc.errContains)
+				} else if !containsString(err.Error(), tc.errContains) {
+					t.Errorf("parsePhones() error = %q, want error containing %q", err.Error(), tc.errContains)
+				}
+				return
+			}
+			if err != nil {
+				t.Errorf("parsePhones() unexpected error: %v", err)
+				return
+			}
+			if len(phones) != tc.wantPhones {
+				t.Errorf("parsePhones() returned %d phones, want %d", len(phones), tc.wantPhones)
+				return
+			}
+			for i, phone := range phones {
+				if phone.Type != tc.wantTypes[i] {
+					t.Errorf("parsePhones()[%d].Type = %q, want %q", i, phone.Type, tc.wantTypes[i])
+				}
+				if phone.Value != tc.wantValues[i] {
+					t.Errorf("parsePhones()[%d].Value = %q, want %q", i, phone.Value, tc.wantValues[i])
+				}
+			}
+		})
+	}
+}

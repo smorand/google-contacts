@@ -51,7 +51,7 @@ func (s *Service) TestConnection(ctx context.Context) error {
 type ContactInput struct {
 	FirstName string
 	LastName  string
-	Phone     string
+	Phones    []PhoneEntry // Multiple phones with types
 	Email     string
 	Company   string
 	Position  string
@@ -120,12 +120,18 @@ func (s *Service) CreateContact(ctx context.Context, input ContactInput) (*Creat
 				FamilyName: input.LastName,
 			},
 		},
-		PhoneNumbers: []*people.PhoneNumber{
-			{
-				Value: input.Phone,
-				Type:  "mobile",
-			},
-		},
+	}
+
+	// Add phone numbers (required, at least one)
+	for _, phone := range input.Phones {
+		phoneType := phone.Type
+		if phoneType == "" {
+			phoneType = "mobile"
+		}
+		person.PhoneNumbers = append(person.PhoneNumbers, &people.PhoneNumber{
+			Value: phone.Value,
+			Type:  phoneType,
+		})
 	}
 
 	// Add optional fields
@@ -314,13 +320,16 @@ func (s *Service) DeleteContact(ctx context.Context, resourceName string) error 
 // UpdateInput contains the data for updating a contact.
 // Only non-nil fields will be updated.
 type UpdateInput struct {
-	FirstName *string
-	LastName  *string
-	Phone     *string
-	Email     *string
-	Company   *string
-	Position  *string
-	Notes     *string
+	FirstName    *string
+	LastName     *string
+	Phone        *string      // Replaces all phones (backward compat)
+	Phones       []PhoneEntry // Replaces all phones (new multi-phone)
+	AddPhones    []PhoneEntry // Add phones without removing existing
+	RemovePhones []string     // Remove phones by value
+	Email        *string
+	Company      *string
+	Position     *string
+	Notes        *string
 }
 
 // UpdateContact updates an existing contact with the provided fields.
@@ -358,12 +367,69 @@ func (s *Service) UpdateContact(ctx context.Context, resourceName string, input 
 		updateFields = append(updateFields, "names")
 	}
 
-	// Update phone if provided (replaces first phone)
+	// Handle phone updates (multiple options available)
+	phoneUpdated := false
+
+	// Option 1: --phone flag replaces first phone (backward compatibility)
 	if input.Phone != nil {
 		if len(current.PhoneNumbers) == 0 {
 			current.PhoneNumbers = []*people.PhoneNumber{{Type: "mobile"}}
 		}
 		current.PhoneNumbers[0].Value = *input.Phone
+		phoneUpdated = true
+	}
+
+	// Option 2: Phones slice replaces all phones
+	if len(input.Phones) > 0 {
+		current.PhoneNumbers = nil
+		for _, phone := range input.Phones {
+			phoneType := phone.Type
+			if phoneType == "" {
+				phoneType = "mobile"
+			}
+			current.PhoneNumbers = append(current.PhoneNumbers, &people.PhoneNumber{
+				Value: phone.Value,
+				Type:  phoneType,
+			})
+		}
+		phoneUpdated = true
+	}
+
+	// Option 3: AddPhones adds without removing existing
+	if len(input.AddPhones) > 0 {
+		for _, phone := range input.AddPhones {
+			phoneType := phone.Type
+			if phoneType == "" {
+				phoneType = "mobile"
+			}
+			current.PhoneNumbers = append(current.PhoneNumbers, &people.PhoneNumber{
+				Value: phone.Value,
+				Type:  phoneType,
+			})
+		}
+		phoneUpdated = true
+	}
+
+	// Option 4: RemovePhones removes specific phones by value
+	if len(input.RemovePhones) > 0 {
+		var remaining []*people.PhoneNumber
+		for _, phone := range current.PhoneNumbers {
+			shouldRemove := false
+			for _, removeValue := range input.RemovePhones {
+				if phone.Value == removeValue {
+					shouldRemove = true
+					break
+				}
+			}
+			if !shouldRemove {
+				remaining = append(remaining, phone)
+			}
+		}
+		current.PhoneNumbers = remaining
+		phoneUpdated = true
+	}
+
+	if phoneUpdated {
 		updateFields = append(updateFields, "phoneNumbers")
 	}
 
