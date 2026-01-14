@@ -1114,7 +1114,7 @@
   - update --remove-address removes specific address
   - show displays all addresses with correct types
   - addresses visible in Google Contacts web UI
-  passes: false
+  passes: true
 
 - id: US-00024
   title: "google-contacts: Structured address parsing"

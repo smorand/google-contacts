@@ -1178,3 +1178,73 @@ Added birthday field support across the entire stack (service layer, CLI, docume
 - Return nil from parser on invalid format rather than error (let API handle detailed validation)
 
 ---
+
+## 2026-01-14 - US-00023 - google-contacts: Add address field support
+
+**Status:** Completed successfully
+
+### What was implemented
+
+Added postal address support across the entire stack (service layer, CLI, documentation):
+
+**Service layer (internal/contacts/service.go):**
+- Added `AddressEntry` struct with `Value` and `Type` fields
+- Added `Addresses` field to `ContactInput` struct
+- Added `Addresses`, `AddAddresses`, `RemoveAddresses` fields to `UpdateInput` struct
+- Added `Addresses` field to `ContactDetails` struct
+- Updated `CreateContact()` to set addresses on new contacts using `FormattedValue`
+- Updated `UpdateContact()` to handle address set/add/remove operations
+- Updated `GetContactDetails()` to extract addresses from API response
+- Added 'addresses' to all PersonFields API calls
+
+**CLI layer (internal/cli/cli.go):**
+- Added `parseAddresses()` function for parsing address strings with type prefix
+- Added `--address`/`-a` flag to create command (repeatable)
+- Added `--addresses`, `--add-address`, `--remove-address` flags to update command
+- Updated show command to display all addresses with types
+
+### Files changed
+
+- `internal/contacts/service.go` - Added AddressEntry struct and address support to all structs and methods
+- `internal/cli/cli.go` - Added address parsing and flags
+- `CLAUDE.md` - Documented address types, formats, and CLI options
+- `README.md` - Added address usage examples and format documentation
+
+### Learnings
+
+**People API Address format:**
+- Address uses `people.Address` with `FormattedValue` and `Type` fields
+- `FormattedValue` stores the full address as a single string
+- Structured fields (streetAddress, city, postalCode, etc.) are also available but not used in this story
+- PersonFields must include "addresses" to fetch/update address data
+
+**Address type design:**
+- Three types supported: home (default), work, other
+- Type prefix format: `type:address` (e.g., "work:50 Avenue Business, Lyon")
+- Default type is "home" when no prefix provided
+- Follows the same pattern established for phones and emails
+
+**Address parsing pattern:**
+- Similar to parsePhones() and parseEmails() but simpler
+- Type validation against allowed set: home, work, other
+- Uses `strings.Index()` to find the type prefix separator
+- Handles addresses that contain colons (e.g., "Address: Street") by checking valid types
+
+**Remove address by content match:**
+- Unlike phones/emails which match by exact value
+- Addresses are removed by checking if FormattedValue contains the search string
+- This allows removing by partial match (e.g., street name) since addresses are long strings
+- Uses `strings.Contains()` for flexible matching
+
+**Consistent multi-value field pattern:**
+- AddressEntry follows same pattern as PhoneEntry and EmailEntry
+- Update operations: single value replacement, full replacement, add, remove
+- Display format matches phones/emails with bullet points and type labels
+- This consistency helps users learn the CLI quickly
+
+**FormattedValue vs structured addresses:**
+- This story uses FormattedValue for simplicity
+- US-00024 will add structured address parsing for better Google Contacts integration
+- FormattedValue is sufficient for storage but doesn't enable city/postal code search
+
+---
