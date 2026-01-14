@@ -514,7 +514,7 @@
   - SKILL.md shows how to use Read tool for images
   - SKILL.md documents confirmation step
   - SKILL.md handles ~/Downloads/ paths
-  passes: false
+  passes: true
 
 - id: US-00013
   title: "google-contacts skill: Search and retrieve contacts"
