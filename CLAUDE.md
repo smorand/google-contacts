@@ -48,6 +48,7 @@ google-contacts
 ├── create               # Create new contact
 ├── search               # Search contacts
 ├── show                 # Show contact details
+├── update               # Update existing contact
 ├── delete               # Delete a contact
 └── version              # Print version
 ```
@@ -280,6 +281,7 @@ The `internal/contacts/service.go` provides:
 - `(*Service).SearchContacts(ctx, query)` - Searches contacts by name, phone, email, company
 - `(*Service).GetContact(ctx, resourceName)` - Retrieves a single contact by ID (basic info)
 - `(*Service).GetContactDetails(ctx, resourceName)` - Retrieves full contact details with all phones, emails, and metadata
+- `(*Service).UpdateContact(ctx, resourceName, input)` - Updates an existing contact (only specified fields)
 - `(*Service).DeleteContact(ctx, resourceName)` - Deletes a contact by ID
 
 The `Service` struct embeds `*people.Service` for full People API access.
@@ -419,6 +421,32 @@ err := srv.DeleteContact(ctx, "people/c123456789")
 - Returns error if contact not found
 - Deletion is permanent (no undo)
 - Best practice: fetch contact details first to display confirmation
+
+**Updating contacts:**
+```go
+// UpdateInput uses pointers to distinguish "not provided" from "empty value"
+type UpdateInput struct {
+    FirstName *string  // Optional - only update if non-nil
+    LastName  *string  // Optional
+    Phone     *string  // Optional - replaces first phone
+    Email     *string  // Optional - replaces first email
+    Company   *string  // Optional
+    Position  *string  // Optional
+    Notes     *string  // Optional
+}
+
+// UpdateContact merges changes with existing contact
+details, err := srv.UpdateContact(ctx, "c123456789", contacts.UpdateInput{
+    FirstName: &newFirstName,  // Only this field will be updated
+})
+```
+
+**Update API pattern:**
+- Uses `People.UpdateContact(resourceName, person).UpdatePersonFields(...)`
+- `UpdatePersonFields` specifies which fields to modify (comma-separated)
+- Fetches current contact first to preserve unchanged fields
+- Returns updated `ContactDetails` for display
+- Only fields with non-nil values in `UpdateInput` are modified
 
 **People API metadata:**
 - Metadata contains source information including creation/update times
