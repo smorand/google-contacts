@@ -4,11 +4,12 @@ A command-line tool for managing Google Contacts using Google People API v1.
 
 ## Features
 
-- Create new contacts with name, phone, email, company, and notes
+- Create new contacts with name, phone, email, company, birthday, and notes
 - Search contacts by name, email, phone, or company
-- View detailed contact information
+- View detailed contact information including birthday
 - Update existing contacts (modify only specified fields)
 - Delete contacts with confirmation prompt
+- Supports birthday with or without year (YYYY-MM-DD or --MM-DD)
 - Shares credentials with email-manager for unified OAuth consent
 
 ## Prerequisites
@@ -92,6 +93,12 @@ google-contacts create -f John -l Doe -p +33612345678 \
   -e "work:john@acme.com" \
   -e "home:john@gmail.com"
 
+# Create with birthday (full date)
+google-contacts create -f John -l Doe -p +33612345678 -b 1985-03-15
+
+# Create with birthday (month/day only, when year is unknown)
+google-contacts create -f John -l Doe -p +33612345678 -b "--03-15"
+
 # Create with all fields
 google-contacts create \
   --firstname John \
@@ -102,6 +109,7 @@ google-contacts create \
   --email "home:john@gmail.com" \
   --company "Acme Inc" \
   --position "CTO" \
+  --birthday 1985-03-15 \
   --notes "Met at conference"
 ```
 
@@ -114,6 +122,7 @@ google-contacts create \
 | `--email` | `-e` | No | Email address (can be repeated) |
 | `--company` | `-c` | No | Company name |
 | `--position` | `-r` | No | Role/position at company |
+| `--birthday` | `-b` | No | Birthday (YYYY-MM-DD or --MM-DD) |
 | `--notes` | `-n` | No | Notes about the contact |
 
 **Phone format:**
@@ -129,6 +138,10 @@ google-contacts create \
 - Multiple: Use `-e` flag multiple times
 
 **Email types:** `work` (default), `home`, `other`
+
+**Birthday format:**
+- Full date: `YYYY-MM-DD` (e.g., `1985-03-15`)
+- Month/day only: `--MM-DD` (e.g., `--03-15` when year is unknown)
 
 ### Search Contacts
 
@@ -180,6 +193,7 @@ google-contacts show people/c123456789
 - All phone numbers with labels (mobile, work, home, etc.)
 - All email addresses with labels
 - Company and position
+- Birthday (formatted as "March 15, 1985" or "March 15" if no year)
 - Notes
 - Google Contact ID
 - Last update time
@@ -201,6 +215,8 @@ Contact Details
 
   Company: Acme Inc
   Position: CTO
+
+  Birthday: March 15, 1985
 
   Notes:
     Met at conference 2025
@@ -247,6 +263,15 @@ google-contacts update c123456789 --remove-email "old@acme.com"
 
 # Update company information
 google-contacts update c123456789 --company "New Corp" --position "CEO"
+
+# Set birthday
+google-contacts update c123456789 --birthday 1985-03-15
+
+# Set birthday (month/day only)
+google-contacts update c123456789 --birthday "--03-15"
+
+# Remove birthday
+google-contacts update c123456789 --clear-birthday
 ```
 
 **Basic Flags:**
@@ -273,6 +298,12 @@ google-contacts update c123456789 --company "New Corp" --position "CEO"
 | `--emails` | | Replace ALL emails (can be repeated) |
 | `--add-email` | | Add email without removing existing (can be repeated) |
 | `--remove-email` | | Remove specific email by value (can be repeated) |
+
+**Birthday Management Flags:**
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--birthday` | `-b` | Set birthday (YYYY-MM-DD or --MM-DD) |
+| `--clear-birthday` | | Remove birthday from contact |
 
 **Behavior:**
 - Only specified fields are updated; unspecified fields remain unchanged
