@@ -1121,3 +1121,60 @@ Updated SKILL.md to comprehensively document support for multiple phone numbers 
 - Consider future split into multiple files if documentation grows further
 
 ---
+
+## 2026-01-14 - US-00022 - google-contacts: Add birthday field support
+
+**Status:** Completed successfully
+
+### What was implemented
+
+Added birthday field support across the entire stack (service layer, CLI, documentation):
+
+**Service layer (internal/contacts/service.go):**
+- Added `Birthday` field to `ContactInput` struct (format: YYYY-MM-DD or --MM-DD)
+- Added `Birthday` and `ClearBirthday` fields to `UpdateInput` struct
+- Added `Birthday` field to `ContactDetails` struct
+- Added `parseBirthday()` function to parse birthday strings into People API Birthday struct
+- Added `formatBirthday()` function to convert API birthday to string format
+- Updated `CreateContact()` to set birthday on new contacts
+- Updated `UpdateContact()` to handle birthday set/clear operations
+- Updated `GetContactDetails()` to extract birthday from API response
+- Added 'birthdays' to all PersonFields API calls
+
+**CLI layer (internal/cli/cli.go):**
+- Added `--birthday`/`-b` flag to create command
+- Added `--birthday`/`-b` and `--clear-birthday` flags to update command
+- Added `formatBirthdayDisplay()` function for human-readable birthday output (e.g., "March 15, 1985")
+- Updated show command to display birthday section
+
+### Files changed
+
+- `internal/contacts/service.go` - Added birthday support to all structs and methods
+- `internal/cli/cli.go` - Added birthday flags and display formatting
+- `CLAUDE.md` - Documented birthday fields in structs and CLI options
+- `README.md` - Added birthday usage examples and format documentation
+
+### Learnings
+
+**People API Birthday format:**
+- Birthday uses `people.Birthday` with nested `Date` struct
+- Date has Year, Month, Day as int64 fields
+- Year = 0 means year is unknown (for month/day only birthdays)
+- PersonFields must include "birthdays" to fetch/update birthday data
+
+**Birthday string format design:**
+- Standard format: YYYY-MM-DD (e.g., "1985-03-15")
+- Month/day only: --MM-DD (e.g., "--03-15") - uses ISO 8601 convention for unknown year
+- Display format: Human-readable with month names (e.g., "March 15, 1985" or "March 15")
+
+**CLI flag handling for optional clear operations:**
+- Use separate bool flag (--clear-birthday) rather than magic value
+- Check ClearBirthday first before Birthday pointer check
+- ClearBirthday sets birthday slice to nil in API call
+
+**Date parsing considerations:**
+- Using fmt.Sscanf for simple integer extraction from date parts
+- Validate month range (1-12) and day range (1-31) for basic sanity checks
+- Return nil from parser on invalid format rather than error (let API handle detailed validation)
+
+---

@@ -985,6 +985,302 @@
   passes: true
 
 # =============================================================================
+# PHASE 8: ADDRESSES AND BIRTHDAY SUPPORT
+# =============================================================================
+
+- id: US-00022
+  title: "google-contacts: Add birthday field support in create/update/show"
+  priority: 22
+  description: |
+    Add support for birthday field in contact management.
+
+    Birthday format:
+    - Full date: YYYY-MM-DD (e.g., "1985-03-15")
+    - Month and day only: --MM-DD (e.g., "--03-15") for contacts where year is unknown
+    - Display: "15 mars 1985" or "15 mars" (if no year)
+
+    CLI changes:
+
+    For create command:
+    - --birthday, -b: Birthday (format: YYYY-MM-DD or --MM-DD)
+    - Example: google-contacts create -f Jean -l Dupont -p +33612345678 -b 1985-03-15
+
+    For update command:
+    - --birthday, -b: Update birthday
+    - --clear-birthday: Remove birthday from contact
+    - Example: google-contacts update c123 -b 1990-06-20
+    - Example: google-contacts update c123 --clear-birthday
+
+    For show command:
+    - Display birthday in contact details with formatted date
+    - Show age if year is available
+
+    Implementation:
+    - Add Birthday field to ContactInput struct
+    - Add Birthday and ClearBirthday to UpdateInput struct
+    - Add Birthday to ContactDetails struct
+    - Update CreateContact to set birthday
+    - Update UpdateContact to handle birthday changes
+    - Update GetContactDetails to return birthday
+    - Add birthday to PersonFields in API calls
+
+    People API mapping:
+    - people.Birthday with date (year, month, day)
+    - Year can be 0 for unknown year
+    - Use "birthdays" in PersonFields
+
+    Acceptance criteria:
+    - Create command accepts --birthday flag
+    - Update command can set/clear birthday
+    - Show command displays birthday with formatting
+    - Age calculated and displayed if year known
+    - Birthday visible in Google Contacts web UI
+  tests:
+  - google-contacts create --help shows --birthday flag
+  - google-contacts update --help shows --birthday and --clear-birthday flags
+  - create with --birthday adds birthday to contact
+  - create with --birthday "--03-15" works for month/day only
+  - update --birthday changes existing birthday
+  - update --clear-birthday removes birthday
+  - show displays birthday in human-readable format
+  - show displays age if year is known
+  - birthday visible in Google Contacts web UI
+  passes: true
+
+- id: US-00023
+  title: "google-contacts: Add address field support in create/update"
+  priority: 23
+  description: |
+    Add support for postal addresses in contact management.
+
+    Address types supported:
+    - home: Home address (default if no type specified)
+    - work: Work address
+    - other: Other address
+
+    Address format for CLI:
+    - Simple: Full address as a single string
+    - With type: "type:address"
+    - Multiple: Repeat --address flag
+
+    CLI changes:
+
+    For create command:
+    - --address, -a: Postal address (can be repeated for multiple)
+    - Format: "type:street, city, postal, country" or just "street, city, postal, country"
+    - Example: google-contacts create -f Jean -l Dupont -p +33612345678 -a "work:123 Rue Example, Paris, 75001, France"
+    - Example: google-contacts create -f Jean -l Dupont -p +33612345678 -a "10 Avenue Test, Lyon, 69001"
+
+    For update command:
+    - --address: Replace all addresses
+    - --add-address: Add address without removing existing
+    - --remove-address: Remove address by matching street content
+    - Example: google-contacts update c123 -a "home:456 New Street, Paris, 75002"
+    - Example: google-contacts update c123 --add-address "work:789 Office Blvd, Paris"
+    - Example: google-contacts update c123 --remove-address "123 Rue Example"
+
+    For show command:
+    - Display all addresses with types
+    - Format: Type: Street, City, Postal, Country
+
+    Implementation:
+    - Add AddressEntry struct with Value and Type fields
+    - Add Addresses []AddressEntry to ContactInput
+    - Add Addresses, AddAddresses, RemoveAddresses to UpdateInput
+    - Add Addresses to ContactDetails
+    - Update CreateContact to set addresses
+    - Update UpdateContact to handle address changes
+    - Update GetContactDetails to return addresses
+    - Add addresses to PersonFields in API calls
+
+    People API mapping:
+    - people.Address with formattedValue, type
+    - Can also use structured fields: streetAddress, city, postalCode, country
+    - Use "addresses" in PersonFields
+
+    Acceptance criteria:
+    - Create command accepts --address flag (repeatable)
+    - Update command can set/add/remove addresses
+    - Show command displays all addresses with types
+    - Addresses visible in Google Contacts web UI
+  tests:
+  - google-contacts create --help shows --address flag
+  - google-contacts update --help shows --address, --add-address, --remove-address
+  - create with single address works
+  - create with typed address works (e.g., work:...)
+  - create with multiple addresses works
+  - update --address replaces all addresses
+  - update --add-address adds without removing
+  - update --remove-address removes specific address
+  - show displays all addresses with correct types
+  - addresses visible in Google Contacts web UI
+  passes: false
+
+- id: US-00024
+  title: "google-contacts: Structured address parsing"
+  priority: 24
+  description: |
+    Enhance address support with structured parsing for better Google Contacts integration.
+
+    Address structure (Google People API fields):
+    - streetAddress: Street name and number
+    - city: City name
+    - postalCode: Postal/ZIP code
+    - region: State/Province (optional)
+    - country: Country name
+    - countryCode: ISO 3166-1 alpha-2 country code (optional)
+
+    Parsing strategy:
+    - Accept either formatted string or structured input
+    - Auto-detect French addresses (postal code format: 5 digits)
+    - For French: "123 Rue Example, 75001 Paris" -> street=123 Rue Example, postal=75001, city=Paris
+
+    CLI enhanced syntax:
+    - Simple: "123 Rue Example, Paris, 75001, France"
+    - Structured: "street=123 Rue Example;city=Paris;postal=75001;country=France"
+    - Auto-parse French: "123 Rue Example, 75001 Paris" -> detects and structures
+
+    French address patterns to recognize:
+    - "street, postal city" (e.g., "10 Rue Test, 75001 Paris")
+    - "street, city postal" (e.g., "10 Rue Test, Paris 75001")
+    - "street, postal city, country" (e.g., "10 Rue Test, 75001 Paris, France")
+    - "street, city, postal, country" (e.g., "10 Rue Test, Paris, 75001, France")
+
+    Implementation:
+    - Add parseAddress() function to parse various formats
+    - Detect French postal codes (5 digits)
+    - Extract structured fields for API
+    - Store both formatted and structured in API
+
+    Acceptance criteria:
+    - Formatted address string is parsed correctly
+    - French addresses auto-detected and structured
+    - Structured input syntax works
+    - Google Contacts shows properly structured address
+    - Address searchable by city in Google Contacts
+  tests:
+  - parseAddress recognizes "street, postal city" format
+  - parseAddress recognizes "street, city, postal, country" format
+  - parseAddress handles structured syntax with semicolons
+  - French postal codes (5 digits) are detected
+  - create with French address stores structured data
+  - Google Contacts web UI shows address with correct structure
+  - Address is searchable by city in Google Contacts
+  passes: false
+
+- id: US-00025
+  title: "google-contacts skill: Document birthday support"
+  priority: 25
+  description: |
+    Update SKILL.md to document birthday field support.
+
+    SKILL.md sections to add/update:
+
+    Birthday documentation:
+    - Format: YYYY-MM-DD for full date, --MM-DD for month/day only
+    - Display format: "15 mars 1985" or "15 mars" (no year)
+    - Age calculation when year is known
+
+    Create workflow update:
+    - Add birthday to validation prompt
+    - Natural language: "Crée un contact Jean Dupont né le 15 mars 1985"
+    - Screenshot extraction: Look for "Date de naissance", "Né le", "DOB", "Birthday"
+
+    Update workflow:
+    - "Change la date de naissance de Jean à 1990-06-20"
+    - "Supprime la date de naissance de Marie"
+    - "Ajoute son anniversaire : 15 mars"
+
+    Validation prompt update:
+    ```
+    📋 Contact à créer :
+    ───────────────────
+    Prénom    : Jean
+    Nom       : Dupont
+    Téléphone : +33 6 12 34 56 78 (mobile)
+    Email     : jean@acme.com (work)
+    Entreprise: Acme Corp
+    Poste     : CTO
+    Naissance : 15 mars 1985 (39 ans)
+
+    Est-ce correct ? (oui/non/modifier)
+    ```
+
+    Acceptance criteria:
+    - SKILL.md documents birthday format
+    - SKILL.md shows birthday in validation prompt
+    - Natural language examples for birthday
+    - Screenshot extraction mentions birthday fields
+  tests:
+  - SKILL.md documents birthday format (YYYY-MM-DD, --MM-DD)
+  - SKILL.md shows birthday in validation prompt example
+  - SKILL.md has natural language examples for birthday
+  - SKILL.md mentions birthday extraction from screenshots
+  - Create workflow includes birthday in confirmation
+  - Update workflow shows birthday modification examples
+  passes: false
+
+- id: US-00026
+  title: "google-contacts skill: Document address support"
+  priority: 26
+  description: |
+    Update SKILL.md to document address field support.
+
+    SKILL.md sections to add/update:
+
+    Address types documentation:
+    - home: Adresse personnelle / Home address
+    - work: Adresse professionnelle / Work address
+    - other: Autre / Other
+
+    Address format documentation:
+    - Simple: "123 Rue Example, Paris, 75001, France"
+    - With type: "work:123 Rue Example, Paris, 75001"
+    - French auto-detection: "10 Avenue Test, 75001 Paris"
+
+    Create workflow update:
+    - Add address to validation prompt
+    - Natural language: "Crée un contact pour Jean Dupont qui habite 10 Rue Test, 75001 Paris"
+    - Screenshot extraction: Look for "Adresse", "Address", street patterns
+
+    Update workflow:
+    - "Ajoute l'adresse professionnelle de Jean: 50 Avenue Business, Paris"
+    - "Change l'adresse de Marie"
+    - "Supprime l'adresse personnelle de Pierre"
+
+    Validation prompt update:
+    ```
+    📋 Contact à créer :
+    ───────────────────
+    Prénom    : Jean
+    Nom       : Dupont
+    Téléphone : +33 6 12 34 56 78 (mobile)
+    Email     : jean@acme.com (work)
+    Entreprise: Acme Corp
+    Poste     : CTO
+    Naissance : 15 mars 1985 (39 ans)
+    Adresse   : 10 Rue Example, 75001 Paris (home)
+
+    Est-ce correct ? (oui/non/modifier)
+    ```
+
+    Acceptance criteria:
+    - SKILL.md documents address types
+    - SKILL.md documents address formats
+    - SKILL.md shows address in validation prompt
+    - Natural language examples for addresses
+    - Screenshot extraction mentions address patterns
+  tests:
+  - SKILL.md documents address types (home, work, other)
+  - SKILL.md documents address format syntax
+  - SKILL.md shows address in validation prompt example
+  - SKILL.md has natural language examples for addresses
+  - SKILL.md mentions French address auto-detection
+  - Screenshot extraction mentions address fields
+  - Update workflow shows address modification examples
+  passes: false
+
+# =============================================================================
 # DEPLOYMENT NOTE
 # =============================================================================
 # After implementing CLI changes, deploy the binary to the skill directory:
@@ -994,4 +1290,4 @@
 #   ~/.claude/skills/google-contacts/scripts/google-contacts
 #
 # This is NOT a user story but a deployment task to be done after each
-# CLI modification (US-00014 through US-00017).
+# CLI modification (US-00014 through US-00017, US-00022 through US-00024).
