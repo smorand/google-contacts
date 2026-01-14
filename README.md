@@ -7,6 +7,7 @@ A command-line tool for managing Google Contacts using Google People API v1.
 - Create new contacts with name, phone, email, company, and notes
 - Search contacts by name, email, phone, or company
 - View detailed contact information
+- Update existing contacts (modify only specified fields)
 - Delete contacts with confirmation prompt
 - Shares credentials with email-manager for unified OAuth consent
 
@@ -174,6 +175,49 @@ Contact Details
     Follow up about partnership
 
   Updated: 2026-01-14 10:30:00
+```
+
+### Update a Contact
+
+Update an existing contact. Only the specified fields will be modified:
+
+```bash
+# Update only first name
+google-contacts update c123456789 --firstname "Jane"
+
+# Update multiple fields
+google-contacts update c123456789 -f "Jane" -l "Smith" -p "+33698765432"
+
+# Update company information
+google-contacts update c123456789 --company "New Corp" --position "CEO"
+```
+
+**Flags:**
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--firstname` | `-f` | Update first name |
+| `--lastname` | `-l` | Update last name |
+| `--phone` | `-p` | Update primary phone (replaces first phone) |
+| `--email` | `-e` | Update primary email (replaces first email) |
+| `--company` | `-c` | Update company name |
+| `--position` | `-r` | Update role/position |
+| `--notes` | `-n` | Update notes |
+
+**Behavior:**
+- Only specified fields are updated; unspecified fields remain unchanged
+- At least one field must be specified
+- Displays before/after summary showing changes
+
+**Example output:**
+```
+Contact updated successfully!
+
+  Name: Jane Smith
+  ID: c123456789
+  Phone: +33612345678 → +33698765432
+  Email: john@acme.com
+  Company: Acme Inc → New Corp
+  Position: CTO → CEO
 ```
 
 ### Delete a Contact

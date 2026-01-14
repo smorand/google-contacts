@@ -40,6 +40,17 @@ var (
 	deleteForce bool
 )
 
+// Update command flags
+var (
+	updateFirstName string
+	updateLastName  string
+	updatePhone     string
+	updateEmail     string
+	updateCompany   string
+	updatePosition  string
+	updateNotes     string
+)
+
 // Command definitions
 var (
 	versionCmd = &cobra.Command{
@@ -151,6 +162,37 @@ Note: Deletion is permanent and cannot be undone.`,
   google-contacts delete c123456789 --force`,
 		Args: cobra.ExactArgs(1),
 		RunE: runDelete,
+	}
+
+	updateCmd = &cobra.Command{
+		Use:   "update <contact-id>",
+		Short: "Update a contact",
+		Long: `Update an existing contact in Google Contacts.
+
+The contact ID can be:
+  - Full resource name: people/c123456789
+  - Just the ID: c123456789
+
+Only the specified fields will be updated. Unspecified fields remain unchanged.
+
+Available fields:
+  --firstname, -f: Update first name
+  --lastname, -l:  Update last name
+  --phone, -p:     Update primary phone (replaces first phone)
+  --email, -e:     Update primary email (replaces first email)
+  --company, -c:   Update company name
+  --position, -r:  Update role/position
+  --notes, -n:     Update notes`,
+		Example: `  # Update only first name
+  google-contacts update c123456789 --firstname "Jane"
+
+  # Update multiple fields
+  google-contacts update c123456789 -f "Jane" -l "Smith" -p "+33698765432"
+
+  # Update company information
+  google-contacts update c123456789 --company "New Corp" --position "CEO"`,
+		Args: cobra.ExactArgs(1),
+		RunE: runUpdate,
 	}
 )
 
@@ -299,6 +341,143 @@ func runDelete(cmd *cobra.Command, args []string) error {
 	fmt.Printf("%s Contact '%s' has been deleted.\n", green("✓"), details.DisplayName)
 
 	return nil
+}
+
+func runUpdate(cmd *cobra.Command, args []string) error {
+	contactID := args[0]
+	ctx := context.Background()
+
+	// Build update input - only set fields that were explicitly provided
+	// Check this BEFORE making API calls to fail fast
+	input := contacts.UpdateInput{}
+	hasUpdates := false
+
+	if cmd.Flags().Changed("firstname") {
+		input.FirstName = &updateFirstName
+		hasUpdates = true
+	}
+	if cmd.Flags().Changed("lastname") {
+		input.LastName = &updateLastName
+		hasUpdates = true
+	}
+	if cmd.Flags().Changed("phone") {
+		input.Phone = &updatePhone
+		hasUpdates = true
+	}
+	if cmd.Flags().Changed("email") {
+		input.Email = &updateEmail
+		hasUpdates = true
+	}
+	if cmd.Flags().Changed("company") {
+		input.Company = &updateCompany
+		hasUpdates = true
+	}
+	if cmd.Flags().Changed("position") {
+		input.Position = &updatePosition
+		hasUpdates = true
+	}
+	if cmd.Flags().Changed("notes") {
+		input.Notes = &updateNotes
+		hasUpdates = true
+	}
+
+	// Check if any fields were provided
+	if !hasUpdates {
+		return fmt.Errorf("no fields specified to update. Use --help to see available flags")
+	}
+
+	// Get People API service
+	srv, err := contacts.GetPeopleService(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to initialize service: %w", err)
+	}
+
+	// Get current contact details first (for before display)
+	beforeDetails, err := srv.GetContactDetails(ctx, contactID)
+	if err != nil {
+		return err
+	}
+
+	// Perform the update
+	afterDetails, err := srv.UpdateContact(ctx, contactID, input)
+	if err != nil {
+		return err
+	}
+
+	// Display success message with before/after summary
+	displayUpdateSummary(beforeDetails, afterDetails)
+
+	return nil
+}
+
+// displayUpdateSummary shows the before/after contact details.
+func displayUpdateSummary(before, after *contacts.ContactDetails) {
+	green := color.New(color.FgGreen).SprintFunc()
+	cyan := color.New(color.FgCyan).SprintFunc()
+	yellow := color.New(color.FgYellow).SprintFunc()
+
+	fmt.Println(green("Contact updated successfully!"))
+	fmt.Println()
+
+	// Name
+	if before.DisplayName != after.DisplayName {
+		fmt.Printf("  %s: %s → %s\n", cyan("Name"), yellow(before.DisplayName), green(after.DisplayName))
+	} else {
+		fmt.Printf("  %s: %s\n", cyan("Name"), after.DisplayName)
+	}
+
+	fmt.Printf("  %s: %s\n", cyan("ID"), extractID(after.ResourceName))
+
+	// Phone (compare first phone)
+	beforePhone := ""
+	afterPhone := ""
+	if len(before.Phones) > 0 {
+		beforePhone = before.Phones[0].Value
+	}
+	if len(after.Phones) > 0 {
+		afterPhone = after.Phones[0].Value
+	}
+	if beforePhone != afterPhone && afterPhone != "" {
+		fmt.Printf("  %s: %s → %s\n", cyan("Phone"), yellow(beforePhone), green(afterPhone))
+	} else if afterPhone != "" {
+		fmt.Printf("  %s: %s\n", cyan("Phone"), afterPhone)
+	}
+
+	// Email (compare first email)
+	beforeEmail := ""
+	afterEmail := ""
+	if len(before.Emails) > 0 {
+		beforeEmail = before.Emails[0].Value
+	}
+	if len(after.Emails) > 0 {
+		afterEmail = after.Emails[0].Value
+	}
+	if beforeEmail != afterEmail && afterEmail != "" {
+		fmt.Printf("  %s: %s → %s\n", cyan("Email"), yellow(beforeEmail), green(afterEmail))
+	} else if afterEmail != "" {
+		fmt.Printf("  %s: %s\n", cyan("Email"), afterEmail)
+	}
+
+	// Company
+	if before.Company != after.Company && after.Company != "" {
+		fmt.Printf("  %s: %s → %s\n", cyan("Company"), yellow(before.Company), green(after.Company))
+	} else if after.Company != "" {
+		fmt.Printf("  %s: %s\n", cyan("Company"), after.Company)
+	}
+
+	// Position
+	if before.Position != after.Position && after.Position != "" {
+		fmt.Printf("  %s: %s → %s\n", cyan("Position"), yellow(before.Position), green(after.Position))
+	} else if after.Position != "" {
+		fmt.Printf("  %s: %s\n", cyan("Position"), after.Position)
+	}
+
+	// Notes
+	if before.Notes != after.Notes && after.Notes != "" {
+		fmt.Printf("  %s: (updated)\n", cyan("Notes"))
+	} else if after.Notes != "" {
+		fmt.Printf("  %s: %s\n", cyan("Notes"), truncate(after.Notes, 50))
+	}
 }
 
 // displayDeleteSummary shows contact summary before deletion.
@@ -512,10 +691,20 @@ func Init() {
 	// Setup delete command flags
 	deleteCmd.Flags().BoolVarP(&deleteForce, "force", "f", false, "Skip confirmation prompt")
 
+	// Setup update command flags
+	updateCmd.Flags().StringVarP(&updateFirstName, "firstname", "f", "", "First name")
+	updateCmd.Flags().StringVarP(&updateLastName, "lastname", "l", "", "Last name")
+	updateCmd.Flags().StringVarP(&updatePhone, "phone", "p", "", "Phone number")
+	updateCmd.Flags().StringVarP(&updateEmail, "email", "e", "", "Email address")
+	updateCmd.Flags().StringVarP(&updateCompany, "company", "c", "", "Company name")
+	updateCmd.Flags().StringVarP(&updatePosition, "position", "r", "", "Role/position at company")
+	updateCmd.Flags().StringVarP(&updateNotes, "notes", "n", "", "Notes about the contact")
+
 	// Register commands
 	RootCmd.AddCommand(versionCmd)
 	RootCmd.AddCommand(createCmd)
 	RootCmd.AddCommand(searchCmd)
 	RootCmd.AddCommand(showCmd)
 	RootCmd.AddCommand(deleteCmd)
+	RootCmd.AddCommand(updateCmd)
 }

@@ -4,6 +4,7 @@ package contacts
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"google.golang.org/api/option"
 	people "google.golang.org/api/people/v1"
@@ -308,6 +309,172 @@ func (s *Service) DeleteContact(ctx context.Context, resourceName string) error 
 	}
 
 	return nil
+}
+
+// UpdateInput contains the data for updating a contact.
+// Only non-nil fields will be updated.
+type UpdateInput struct {
+	FirstName *string
+	LastName  *string
+	Phone     *string
+	Email     *string
+	Company   *string
+	Position  *string
+	Notes     *string
+}
+
+// UpdateContact updates an existing contact with the provided fields.
+// Only fields that are non-nil in UpdateInput will be modified.
+// Returns the updated contact details.
+func (s *Service) UpdateContact(ctx context.Context, resourceName string, input UpdateInput) (*ContactDetails, error) {
+	// Normalize resource name
+	if len(resourceName) > 0 && resourceName[0] != 'p' {
+		resourceName = "people/" + resourceName
+	}
+
+	// First, fetch the current contact to get etag and merge changes
+	current, err := s.People.Get(resourceName).
+		PersonFields("names,phoneNumbers,emailAddresses,organizations,biographies,metadata").
+		Context(ctx).
+		Do()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get contact: %w", err)
+	}
+
+	// Build the update mask for only the fields we're updating
+	var updateFields []string
+
+	// Update names if provided
+	if input.FirstName != nil || input.LastName != nil {
+		if len(current.Names) == 0 {
+			current.Names = []*people.Name{{}}
+		}
+		if input.FirstName != nil {
+			current.Names[0].GivenName = *input.FirstName
+		}
+		if input.LastName != nil {
+			current.Names[0].FamilyName = *input.LastName
+		}
+		updateFields = append(updateFields, "names")
+	}
+
+	// Update phone if provided (replaces first phone)
+	if input.Phone != nil {
+		if len(current.PhoneNumbers) == 0 {
+			current.PhoneNumbers = []*people.PhoneNumber{{Type: "mobile"}}
+		}
+		current.PhoneNumbers[0].Value = *input.Phone
+		updateFields = append(updateFields, "phoneNumbers")
+	}
+
+	// Update email if provided (replaces first email)
+	if input.Email != nil {
+		if len(current.EmailAddresses) == 0 {
+			current.EmailAddresses = []*people.EmailAddress{{Type: "work"}}
+		}
+		current.EmailAddresses[0].Value = *input.Email
+		updateFields = append(updateFields, "emailAddresses")
+	}
+
+	// Update organization if provided
+	if input.Company != nil || input.Position != nil {
+		if len(current.Organizations) == 0 {
+			current.Organizations = []*people.Organization{{}}
+		}
+		if input.Company != nil {
+			current.Organizations[0].Name = *input.Company
+		}
+		if input.Position != nil {
+			current.Organizations[0].Title = *input.Position
+		}
+		updateFields = append(updateFields, "organizations")
+	}
+
+	// Update notes if provided
+	if input.Notes != nil {
+		if len(current.Biographies) == 0 {
+			current.Biographies = []*people.Biography{{ContentType: "TEXT_PLAIN"}}
+		}
+		current.Biographies[0].Value = *input.Notes
+		updateFields = append(updateFields, "biographies")
+	}
+
+	// If no fields to update, return current details
+	if len(updateFields) == 0 {
+		return s.GetContactDetails(ctx, resourceName)
+	}
+
+	// Perform the update
+	updated, err := s.People.UpdateContact(resourceName, current).
+		UpdatePersonFields(strings.Join(updateFields, ",")).
+		PersonFields("names,phoneNumbers,emailAddresses,organizations,biographies,metadata").
+		Context(ctx).
+		Do()
+	if err != nil {
+		return nil, fmt.Errorf("failed to update contact: %w", err)
+	}
+
+	// Convert to ContactDetails
+	details := &ContactDetails{
+		ResourceName: updated.ResourceName,
+	}
+
+	// Extract names
+	if len(updated.Names) > 0 {
+		name := updated.Names[0]
+		details.FirstName = name.GivenName
+		details.LastName = name.FamilyName
+		details.DisplayName = name.DisplayName
+	}
+
+	// Extract all phone numbers with labels
+	for _, phone := range updated.PhoneNumbers {
+		entry := PhoneEntry{
+			Value: phone.Value,
+			Type:  phone.Type,
+		}
+		if entry.Type == "" {
+			entry.Type = "other"
+		}
+		details.Phones = append(details.Phones, entry)
+	}
+
+	// Extract all email addresses with labels
+	for _, email := range updated.EmailAddresses {
+		entry := EmailEntry{
+			Value: email.Value,
+			Type:  email.Type,
+		}
+		if entry.Type == "" {
+			entry.Type = "other"
+		}
+		details.Emails = append(details.Emails, entry)
+	}
+
+	// Extract company and position
+	if len(updated.Organizations) > 0 {
+		org := updated.Organizations[0]
+		details.Company = org.Name
+		details.Position = org.Title
+	}
+
+	// Extract notes
+	if len(updated.Biographies) > 0 {
+		details.Notes = updated.Biographies[0].Value
+	}
+
+	// Extract metadata (creation/update times)
+	if updated.Metadata != nil {
+		for _, source := range updated.Metadata.Sources {
+			if source.Type == "CONTACT" {
+				if source.UpdateTime != "" {
+					details.UpdatedAt = source.UpdateTime
+				}
+			}
+		}
+	}
+
+	return details, nil
 }
 
 // GetContactDetails retrieves full details for a single contact by its resource name.
