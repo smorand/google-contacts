@@ -74,7 +74,7 @@ func TestContactInput_Validation(t *testing.T) {
 			isValid: true,
 		},
 		{
-			name: "valid input with multiple phones",
+			name: "valid input with multiple phones and emails",
 			input: ContactInput{
 				FirstName: "John",
 				LastName:  "Doe",
@@ -82,7 +82,10 @@ func TestContactInput_Validation(t *testing.T) {
 					{Value: "+33612345678", Type: "mobile"},
 					{Value: "+33123456789", Type: "work"},
 				},
-				Email:    "john@example.com",
+				Emails: []EmailEntry{
+					{Value: "john@example.com", Type: "work"},
+					{Value: "john@gmail.com", Type: "home"},
+				},
 				Company:  "Acme Inc",
 				Position: "CTO",
 				Notes:    "Met at conference",

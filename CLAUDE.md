@@ -245,11 +245,12 @@ func TestExtractID(t *testing.T) {
   - `truncate()` - String truncation for table display
   - `formatTime()` - ISO 8601 timestamp formatting
   - `parsePhones()` - Phone string parsing with type:number format
+  - `parseEmails()` - Email string parsing with type:email format
   - Field validation logic for create command
 
 - **Service types** (`internal/contacts/service_test.go`):
   - `extractID()` - Resource name parsing
-  - `ContactInput` validation with multiple phones
+  - `ContactInput` validation with multiple phones and emails
   - `SearchResult` struct field access
   - `ContactDetails` with phone/email entries
   - Resource name normalization
@@ -290,12 +291,12 @@ The `Service` struct embeds `*people.Service` for full People API access.
 ### ContactInput and CreatedContact
 
 ```go
-// Input for creating a contact (supports multiple phones)
+// Input for creating a contact (supports multiple phones and emails)
 type ContactInput struct {
     FirstName string        // Required
     LastName  string        // Required
     Phones    []PhoneEntry  // Required (at least one)
-    Email     string        // Optional
+    Emails    []EmailEntry  // Optional (multiple emails with types)
     Company   string        // Optional
     Position  string        // Optional
     Notes     string        // Optional
@@ -305,6 +306,12 @@ type ContactInput struct {
 type PhoneEntry struct {
     Value string  // e.g., "+33612345678"
     Type  string  // mobile, work, home, main, other (default: mobile)
+}
+
+// EmailEntry represents an email with type label
+type EmailEntry struct {
+    Value string  // e.g., "john@acme.com"
+    Type  string  // work, home, other (default: work)
 }
 
 // Result of contact creation
@@ -326,6 +333,17 @@ Valid phone types for create/update commands:
 Phone format in CLI: `type:number` or just `number` (defaults to mobile)
 - Simple: `+33612345678` → mobile
 - Typed: `work:+33123456789` → work
+
+### Email Types
+
+Valid email types for create/update commands:
+- `work` - Work email (default if not specified)
+- `home` - Personal/home email
+- `other` - Other email
+
+Email format in CLI: `type:email` or just `email` (defaults to work)
+- Simple: `john@acme.com` → work
+- Typed: `home:john@gmail.com` → home
 
 ### Common PersonFields
 
@@ -452,7 +470,10 @@ type UpdateInput struct {
     Phones       []PhoneEntry  // Optional - replaces ALL phones
     AddPhones    []PhoneEntry  // Optional - add phones without removing existing
     RemovePhones []string      // Optional - remove phones by value
-    Email        *string       // Optional - replaces first email
+    Email        *string       // Optional - replaces first email (backward compat)
+    Emails       []EmailEntry  // Optional - replaces ALL emails
+    AddEmails    []EmailEntry  // Optional - add emails without removing existing
+    RemoveEmails []string      // Optional - remove emails by value
     Company      *string       // Optional
     Position     *string       // Optional
     Notes        *string       // Optional
@@ -472,6 +493,16 @@ details, err := srv.UpdateContact(ctx, "c123456789", contacts.UpdateInput{
 details, err := srv.UpdateContact(ctx, "c123456789", contacts.UpdateInput{
     RemovePhones: []string{"+33612345678"},
 })
+
+// Add an email without removing existing
+details, err := srv.UpdateContact(ctx, "c123456789", contacts.UpdateInput{
+    AddEmails: []contacts.EmailEntry{{Value: "john@gmail.com", Type: "home"}},
+})
+
+// Remove a specific email by value
+details, err := srv.UpdateContact(ctx, "c123456789", contacts.UpdateInput{
+    RemoveEmails: []string{"old@acme.com"},
+})
 ```
 
 **Update API pattern:**
@@ -486,6 +517,12 @@ details, err := srv.UpdateContact(ctx, "c123456789", contacts.UpdateInput{
 2. `--phones`: Replaces ALL phones with new ones
 3. `--add-phone`: Adds phone(s) without removing existing
 4. `--remove-phone`: Removes specific phone(s) by value
+
+**Email update options (in priority order):**
+1. `--email` (or `-e`): Replaces first email only (backward compatible)
+2. `--emails`: Replaces ALL emails with new ones
+3. `--add-email`: Adds email(s) without removing existing
+4. `--remove-email`: Removes specific email(s) by value
 
 **People API metadata:**
 - Metadata contains source information including creation/update times

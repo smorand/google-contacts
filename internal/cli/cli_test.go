@@ -416,3 +416,128 @@ func TestParsePhones(t *testing.T) {
 		})
 	}
 }
+
+func TestParseEmails(t *testing.T) {
+	tests := []struct {
+		name        string
+		input       []string
+		wantEmails  int
+		wantTypes   []string
+		wantValues  []string
+		wantErr     bool
+		errContains string
+	}{
+		{
+			name:       "single email without type",
+			input:      []string{"john@example.com"},
+			wantEmails: 1,
+			wantTypes:  []string{"work"},
+			wantValues: []string{"john@example.com"},
+			wantErr:    false,
+		},
+		{
+			name:       "single email with work type",
+			input:      []string{"work:john@example.com"},
+			wantEmails: 1,
+			wantTypes:  []string{"work"},
+			wantValues: []string{"john@example.com"},
+			wantErr:    false,
+		},
+		{
+			name:       "single email with home type",
+			input:      []string{"home:john@gmail.com"},
+			wantEmails: 1,
+			wantTypes:  []string{"home"},
+			wantValues: []string{"john@gmail.com"},
+			wantErr:    false,
+		},
+		{
+			name:       "multiple emails with types",
+			input:      []string{"work:john@example.com", "home:john@gmail.com", "other:john@yahoo.com"},
+			wantEmails: 3,
+			wantTypes:  []string{"work", "home", "other"},
+			wantValues: []string{"john@example.com", "john@gmail.com", "john@yahoo.com"},
+			wantErr:    false,
+		},
+		{
+			name:       "mixed with and without types",
+			input:      []string{"john@example.com", "home:john@gmail.com"},
+			wantEmails: 2,
+			wantTypes:  []string{"work", "home"},
+			wantValues: []string{"john@example.com", "john@gmail.com"},
+			wantErr:    false,
+		},
+		{
+			name:       "other type",
+			input:      []string{"other:john@yahoo.com"},
+			wantEmails: 1,
+			wantTypes:  []string{"other"},
+			wantValues: []string{"john@yahoo.com"},
+			wantErr:    false,
+		},
+		{
+			name:        "invalid type",
+			input:       []string{"business:john@example.com"},
+			wantErr:     true,
+			errContains: "invalid email type",
+		},
+		{
+			name:        "empty email value",
+			input:       []string{"work:"},
+			wantErr:     true,
+			errContains: "email address cannot be empty",
+		},
+		{
+			name:       "type case insensitive",
+			input:      []string{"HOME:john@gmail.com"},
+			wantEmails: 1,
+			wantTypes:  []string{"home"},
+			wantValues: []string{"john@gmail.com"},
+			wantErr:    false,
+		},
+		{
+			name:       "empty input",
+			input:      []string{},
+			wantEmails: 0,
+			wantErr:    false,
+		},
+		{
+			name:       "email with colons in domain should handle correctly",
+			input:      []string{"work:user@host:port.com"},
+			wantEmails: 1,
+			wantTypes:  []string{"work"},
+			wantValues: []string{"user@host:port.com"},
+			wantErr:    false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			emails, err := parseEmails(tc.input)
+			if tc.wantErr {
+				if err == nil {
+					t.Errorf("parseEmails() expected error containing %q, got nil", tc.errContains)
+				} else if !containsString(err.Error(), tc.errContains) {
+					t.Errorf("parseEmails() error = %q, want error containing %q", err.Error(), tc.errContains)
+				}
+				return
+			}
+			if err != nil {
+				t.Errorf("parseEmails() unexpected error: %v", err)
+				return
+			}
+			if len(emails) != tc.wantEmails {
+				t.Errorf("parseEmails() returned %d emails, want %d", len(emails), tc.wantEmails)
+				return
+			}
+			for i, email := range emails {
+				if email.Type != tc.wantTypes[i] {
+					t.Errorf("parseEmails()[%d].Type = %q, want %q", i, email.Type, tc.wantTypes[i])
+				}
+				if email.Value != tc.wantValues[i] {
+					t.Errorf("parseEmails()[%d].Value = %q, want %q", i, email.Value, tc.wantValues[i])
+				}
+			}
+		})
+	}
+}

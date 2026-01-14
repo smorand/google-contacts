@@ -84,15 +84,24 @@ google-contacts create -f John -l Doe \
   -p "mobile:+33612345678" \
   -p "work:+33123456789"
 
+# Create with single email (defaults to work)
+google-contacts create -f John -l Doe -p +33612345678 -e john@acme.com
+
+# Create with multiple emails
+google-contacts create -f John -l Doe -p +33612345678 \
+  -e "work:john@acme.com" \
+  -e "home:john@gmail.com"
+
 # Create with all fields
 google-contacts create \
   --firstname John \
   --lastname Doe \
   --phone "mobile:+33612345678" \
   --phone "work:+33123456789" \
+  --email "work:john@acme.com" \
+  --email "home:john@gmail.com" \
   --company "Acme Inc" \
   --position "CTO" \
-  --email john@acme.com \
   --notes "Met at conference"
 ```
 
@@ -102,9 +111,9 @@ google-contacts create \
 | `--firstname` | `-f` | Yes | First name |
 | `--lastname` | `-l` | Yes | Last name |
 | `--phone` | `-p` | Yes | Phone number (can be repeated) |
+| `--email` | `-e` | No | Email address (can be repeated) |
 | `--company` | `-c` | No | Company name |
 | `--position` | `-r` | No | Role/position at company |
-| `--email` | `-e` | No | Email address |
 | `--notes` | `-n` | No | Notes about the contact |
 
 **Phone format:**
@@ -113,6 +122,13 @@ google-contacts create \
 - Multiple: Use `-p` flag multiple times
 
 **Phone types:** `mobile` (default), `work`, `home`, `main`, `other`
+
+**Email format:**
+- Simple: `john@acme.com` (defaults to "work" type)
+- With type: `work:john@acme.com`, `home:john@gmail.com`
+- Multiple: Use `-e` flag multiple times
+
+**Email types:** `work` (default), `home`, `other`
 
 ### Search Contacts
 
@@ -215,6 +231,20 @@ google-contacts update c123456789 --add-phone "work:+33123456789"
 # Remove a specific phone by value
 google-contacts update c123456789 --remove-phone "+33612345678"
 
+# Update primary email (backward compatible, replaces first email)
+google-contacts update c123456789 -e "newemail@acme.com"
+
+# Replace ALL emails with new ones
+google-contacts update c123456789 \
+  --emails "work:john@acme.com" \
+  --emails "home:john@gmail.com"
+
+# Add a personal email without removing existing
+google-contacts update c123456789 --add-email "home:john@gmail.com"
+
+# Remove a specific email by value
+google-contacts update c123456789 --remove-email "old@acme.com"
+
 # Update company information
 google-contacts update c123456789 --company "New Corp" --position "CEO"
 ```
@@ -224,7 +254,6 @@ google-contacts update c123456789 --company "New Corp" --position "CEO"
 |------|-------|-------------|
 | `--firstname` | `-f` | Update first name |
 | `--lastname` | `-l` | Update last name |
-| `--email` | `-e` | Update primary email (replaces first email) |
 | `--company` | `-c` | Update company name |
 | `--position` | `-r` | Update role/position |
 | `--notes` | `-n` | Update notes |
@@ -237,11 +266,19 @@ google-contacts update c123456789 --company "New Corp" --position "CEO"
 | `--add-phone` | | Add phone without removing existing (can be repeated) |
 | `--remove-phone` | | Remove specific phone by value (can be repeated) |
 
+**Email Management Flags:**
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--email` | `-e` | Update primary email (replaces first email only) |
+| `--emails` | | Replace ALL emails (can be repeated) |
+| `--add-email` | | Add email without removing existing (can be repeated) |
+| `--remove-email` | | Remove specific email by value (can be repeated) |
+
 **Behavior:**
 - Only specified fields are updated; unspecified fields remain unchanged
 - At least one field must be specified
 - Displays before/after summary showing changes
-- Phone operations can be combined (e.g., add one and remove another)
+- Phone and email operations can be combined (e.g., add one and remove another)
 
 **Example output:**
 ```
