@@ -291,6 +291,25 @@ func (s *Service) GetContact(ctx context.Context, resourceName string) (*SearchR
 	return result, nil
 }
 
+// DeleteContact deletes a contact by its resource name.
+// The resourceName can be a full path (e.g., "people/c123") or just the ID (e.g., "c123").
+// Returns the contact details before deletion for confirmation display.
+func (s *Service) DeleteContact(ctx context.Context, resourceName string) error {
+	// Normalize resource name
+	if len(resourceName) > 0 && resourceName[0] != 'p' {
+		resourceName = "people/" + resourceName
+	}
+
+	_, err := s.People.DeleteContact(resourceName).
+		Context(ctx).
+		Do()
+	if err != nil {
+		return fmt.Errorf("failed to delete contact: %w", err)
+	}
+
+	return nil
+}
+
 // GetContactDetails retrieves full details for a single contact by its resource name.
 // The resourceName can be a full path (e.g., "people/c123") or just the ID (e.g., "c123").
 // Returns all available fields including all phones, all emails with labels, and metadata.

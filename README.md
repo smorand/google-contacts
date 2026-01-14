@@ -7,6 +7,7 @@ A command-line tool for managing Google Contacts using Google People API v1.
 - Create new contacts with name, phone, email, company, and notes
 - Search contacts by name, email, phone, or company
 - View detailed contact information
+- Delete contacts with confirmation prompt
 - Shares credentials with email-manager for unified OAuth consent
 
 ## Prerequisites
@@ -173,6 +174,43 @@ Contact Details
     Follow up about partnership
 
   Updated: 2026-01-14 10:30:00
+```
+
+### Delete a Contact
+
+Delete a contact by its ID:
+
+```bash
+# Delete with confirmation prompt
+google-contacts delete c123456789
+
+# Delete without confirmation (use with caution)
+google-contacts delete c123456789 --force
+```
+
+**Flags:**
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--force` | `-f` | Skip confirmation prompt |
+
+**Safety features:**
+- By default, displays contact summary before deletion
+- Prompts for confirmation (y/N)
+- Use `--force` to skip confirmation (useful for scripts)
+
+**Example output:**
+```
+Contact to delete:
+
+  Name: John Doe
+  ID: c123456789
+  Phone: +33612345678
+  Email: john@acme.com
+  Company: Acme Inc
+
+Are you sure you want to delete this contact? (y/N): y
+
+✓ Contact 'John Doe' has been deleted.
 ```
 
 ## Claude Skill Integration
