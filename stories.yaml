@@ -641,7 +641,7 @@
   - update with multiple flags updates multiple fields
   - update preserves unspecified fields
   - updated contact visible in Google Contacts web UI with changes
-  passes: false
+  passes: true
 
 - id: US-00016
   title: "google-contacts: Multiple phones support in create/update"
