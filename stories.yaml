@@ -549,4 +549,4 @@
   - SKILL.md contains show command section
   - SKILL.md handles single result auto-show
   - SKILL.md shows field extraction examples
-  passes: false
+  passes: true

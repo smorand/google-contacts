@@ -642,3 +642,63 @@ All criteria were already met in existing SKILL.md:
 - This pattern ensures nothing is missed while allowing focused review of each capability
 
 ---
+
+## 2026-01-14 - US-00013 - google-contacts skill: Search and retrieve contacts
+
+**Status:** Completed successfully (already implemented)
+
+### What was implemented
+Verified that the SKILL.md at `~/.claude/skills/google-contacts/` already contains comprehensive documentation for searching and retrieving contacts. The search and show workflows were fully documented as part of US-00010.
+
+### Acceptance criteria verification
+
+All criteria were already met in existing SKILL.md:
+
+1. **Search workflow section** ✅
+   - Section "3. Rechercher des contacts" (line 194)
+   - Examples for name, company, and phone searches
+   - Result behavior table for 0, 1, or multiple results
+
+2. **Show command section** ✅
+   - Section "4. Afficher les détails d'un contact" (line 238)
+   - ID format options documented (full or ID only)
+   - Complete example output with all fields
+
+3. **Single result auto-show** ✅
+   - "Comportement selon les résultats" table (lines 230-237)
+   - Explicitly states: "1 | Affiche automatiquement les détails complets"
+
+4. **Field extraction examples** ✅
+   - "Workflow 3" (lines 313-322)
+   - Shows extracting specific field (phone number) from search results
+   - Complete workflow from user question to response
+
+### Files changed
+- **Modified:**
+  - `stories.yaml` - Updated US-00013 `passes: false` to `passes: true`
+  - `internal/cli/cli_test.go` - gofmt formatting fixes for struct alignment
+  - `progress.md` - Added this entry
+
+### Learnings
+
+**Comprehensive skill documentation pattern:**
+- When creating a skill (US-00010), documenting all workflows upfront is efficient
+- Stories US-00011, US-00012, and US-00013 all verified already-implemented documentation
+- This pattern reduces implementation time but requires careful planning upfront
+
+**gofmt struct alignment:**
+- Running `make check` includes `gofmt` which auto-aligns struct fields
+- When a struct has fields of different lengths, gofmt aligns all colons
+- Example: `name string` and `errContains string` get aligned to longest field name
+
+**Verification vs implementation stories:**
+- Some stories end up being verification checkpoints rather than new implementations
+- This is valid when earlier stories naturally fulfill later requirements
+- The verification step confirms completeness and catches any gaps
+
+**SKILL.md as complete reference:**
+- A well-structured SKILL.md should be self-contained
+- Includes: workflows, command syntax, examples, error handling, authentication
+- The document serves both as Claude's guide and as human-readable documentation
+
+---
