@@ -757,3 +757,68 @@ Implemented the 'delete' command to remove contacts from Google Contacts with sa
 - The cache is usually correct but can cause confusion during development
 
 ---
+
+## 2026-01-14 - US-00015 - google-contacts: Update contact command
+
+**Status:** Completed successfully
+
+### What was implemented
+Implemented the 'update' command to modify existing contacts with selective field updates using the People API.
+
+**Features:**
+- All contact fields can be updated: firstname, lastname, phone, email, company, position, notes
+- Only specified fields are modified; unspecified fields remain unchanged
+- Before/after display highlights changed fields with colored arrows (→)
+- Validates at least one field is specified before making API calls
+- Uses pointer types in UpdateInput to distinguish "not provided" from "empty value"
+
+### Files changed
+- **Modified:**
+  - `internal/contacts/service.go` - Added UpdateInput type and UpdateContact method
+  - `internal/cli/cli.go` - Added updateCmd, update flags, runUpdate handler, displayUpdateSummary function
+  - `CLAUDE.md` - Added update command to command structure, service methods, and API patterns
+  - `README.md` - Added update command documentation with flags table and example output
+
+### Learnings
+
+**Pointer types for optional updates:**
+- Use `*string` instead of `string` to distinguish "not provided" (nil) from "provided empty" ("")
+- Cobra's `cmd.Flags().Changed("flagname")` checks if flag was explicitly set by user
+- This pattern allows updating a field to empty string if desired
+
+**People API UpdateContact pattern:**
+```go
+updated, err := srv.People.UpdateContact(resourceName, person).
+    UpdatePersonFields("names,phoneNumbers").  // Comma-separated field names
+    PersonFields("names,phoneNumbers").         // Fields to return in response
+    Context(ctx).
+    Do()
+```
+
+**UpdatePersonFields mask:**
+- Specifies which fields to modify in the contact
+- Only listed fields are updated; others are preserved
+- Field names are the same as PersonFields: `names`, `phoneNumbers`, `emailAddresses`, `organizations`, `biographies`
+
+**Fetch before update pattern:**
+- Fetch current contact data before making changes
+- Merge new values into existing Person object
+- Build UpdatePersonFields mask based on which fields changed
+- Display before/after comparison for user verification
+
+**Before/after display pattern:**
+- Compare before and after values for each field
+- Show arrow (→) only when value changed: `old → new`
+- Use color coding: yellow for old value, green for new value
+- Skip arrow when value unchanged, just show current value
+
+**Flag ordering in CLI:**
+- Check for required inputs BEFORE making API calls to fail fast
+- Better UX: "no fields specified" error appears immediately
+- Avoids unnecessary network calls when command is incomplete
+
+**String import in service.go:**
+- Added `strings` import for `strings.Join(updateFields, ",")`
+- Used to build the UpdatePersonFields comma-separated list
+
+---
