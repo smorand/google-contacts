@@ -304,6 +304,7 @@ type ContactInput struct {
     Company   string        // Optional
     Position  string        // Optional
     Notes     string        // Optional
+    Birthday  string        // Optional (YYYY-MM-DD or --MM-DD)
 }
 
 // PhoneEntry represents a phone with type label
@@ -435,6 +436,7 @@ type ContactDetails struct {
     Company      string
     Position     string
     Notes        string
+    Birthday     string        // Format: YYYY-MM-DD or --MM-DD (if year unknown)
     CreatedAt    string
     UpdatedAt    string
 }
@@ -468,19 +470,21 @@ err := srv.DeleteContact(ctx, "people/c123456789")
 ```go
 // UpdateInput uses pointers to distinguish "not provided" from "empty value"
 type UpdateInput struct {
-    FirstName    *string       // Optional - only update if non-nil
-    LastName     *string       // Optional
-    Phone        *string       // Optional - replaces first phone (backward compat)
-    Phones       []PhoneEntry  // Optional - replaces ALL phones
-    AddPhones    []PhoneEntry  // Optional - add phones without removing existing
-    RemovePhones []string      // Optional - remove phones by value
-    Email        *string       // Optional - replaces first email (backward compat)
-    Emails       []EmailEntry  // Optional - replaces ALL emails
-    AddEmails    []EmailEntry  // Optional - add emails without removing existing
-    RemoveEmails []string      // Optional - remove emails by value
-    Company      *string       // Optional
-    Position     *string       // Optional
-    Notes        *string       // Optional
+    FirstName     *string       // Optional - only update if non-nil
+    LastName      *string       // Optional
+    Phone         *string       // Optional - replaces first phone (backward compat)
+    Phones        []PhoneEntry  // Optional - replaces ALL phones
+    AddPhones     []PhoneEntry  // Optional - add phones without removing existing
+    RemovePhones  []string      // Optional - remove phones by value
+    Email         *string       // Optional - replaces first email (backward compat)
+    Emails        []EmailEntry  // Optional - replaces ALL emails
+    AddEmails     []EmailEntry  // Optional - add emails without removing existing
+    RemoveEmails  []string      // Optional - remove emails by value
+    Company       *string       // Optional
+    Position      *string       // Optional
+    Notes         *string       // Optional
+    Birthday      *string       // Optional - sets birthday (YYYY-MM-DD or --MM-DD)
+    ClearBirthday bool          // Optional - set to true to remove birthday
 }
 
 // UpdateContact merges changes with existing contact
@@ -527,6 +531,14 @@ details, err := srv.UpdateContact(ctx, "c123456789", contacts.UpdateInput{
 2. `--emails`: Replaces ALL emails with new ones
 3. `--add-email`: Adds email(s) without removing existing
 4. `--remove-email`: Removes specific email(s) by value
+
+**Birthday update options:**
+- `--birthday` (or `-b`): Sets birthday (format: YYYY-MM-DD or --MM-DD)
+- `--clear-birthday`: Removes birthday from contact
+
+**Birthday formats:**
+- Full date: `YYYY-MM-DD` (e.g., "1985-03-15")
+- Month/day only: `--MM-DD` (e.g., "--03-15" when year is unknown)
 
 **People API metadata:**
 - Metadata contains source information including creation/update times

@@ -56,6 +56,7 @@ type ContactInput struct {
 	Company   string
 	Position  string
 	Notes     string
+	Birthday  string // Format: YYYY-MM-DD or --MM-DD (month/day only)
 }
 
 // CreatedContact contains the result of a contact creation.
@@ -98,6 +99,7 @@ type ContactDetails struct {
 	Company      string
 	Position     string
 	Notes        string
+	Birthday     string // Format: YYYY-MM-DD or --MM-DD (if year unknown)
 	CreatedAt    string
 	UpdatedAt    string
 }
@@ -108,6 +110,70 @@ func extractID(resourceName string) string {
 		return resourceName[7:]
 	}
 	return resourceName
+}
+
+// parseBirthday parses a birthday string into a People API Birthday struct.
+// Accepts formats:
+// - YYYY-MM-DD: Full date (e.g., "1985-03-15")
+// - --MM-DD: Month and day only, year unknown (e.g., "--03-15")
+// Returns nil if the input is empty or invalid.
+func parseBirthday(birthday string) *people.Birthday {
+	if birthday == "" {
+		return nil
+	}
+
+	date := &people.Date{}
+
+	if strings.HasPrefix(birthday, "--") {
+		// Format: --MM-DD (month and day only)
+		parts := strings.Split(birthday[2:], "-")
+		if len(parts) != 2 {
+			return nil
+		}
+		month := 0
+		day := 0
+		fmt.Sscanf(parts[0], "%d", &month)
+		fmt.Sscanf(parts[1], "%d", &day)
+		if month < 1 || month > 12 || day < 1 || day > 31 {
+			return nil
+		}
+		date.Month = int64(month)
+		date.Day = int64(day)
+		// Year is 0 (unknown)
+	} else {
+		// Format: YYYY-MM-DD
+		parts := strings.Split(birthday, "-")
+		if len(parts) != 3 {
+			return nil
+		}
+		year := 0
+		month := 0
+		day := 0
+		fmt.Sscanf(parts[0], "%d", &year)
+		fmt.Sscanf(parts[1], "%d", &month)
+		fmt.Sscanf(parts[2], "%d", &day)
+		if year < 1 || month < 1 || month > 12 || day < 1 || day > 31 {
+			return nil
+		}
+		date.Year = int64(year)
+		date.Month = int64(month)
+		date.Day = int64(day)
+	}
+
+	return &people.Birthday{Date: date}
+}
+
+// formatBirthday formats a birthday from People API to a display string.
+// Returns format: "YYYY-MM-DD" or "--MM-DD" (if year is 0/unknown)
+func formatBirthday(birthday *people.Birthday) string {
+	if birthday == nil || birthday.Date == nil {
+		return ""
+	}
+	d := birthday.Date
+	if d.Year == 0 {
+		return fmt.Sprintf("--%02d-%02d", d.Month, d.Day)
+	}
+	return fmt.Sprintf("%04d-%02d-%02d", d.Year, d.Month, d.Day)
 }
 
 // CreateContact creates a new contact in Google Contacts.
@@ -164,9 +230,17 @@ func (s *Service) CreateContact(ctx context.Context, input ContactInput) (*Creat
 		}
 	}
 
+	// Add birthday if provided
+	if input.Birthday != "" {
+		birthday := parseBirthday(input.Birthday)
+		if birthday != nil {
+			person.Birthdays = []*people.Birthday{birthday}
+		}
+	}
+
 	// Create the contact
 	created, err := s.People.CreateContact(person).
-		PersonFields("names,phoneNumbers,emailAddresses,organizations,biographies").
+		PersonFields("names,phoneNumbers,emailAddresses,organizations,biographies,birthdays").
 		Context(ctx).
 		Do()
 	if err != nil {
@@ -322,19 +396,21 @@ func (s *Service) DeleteContact(ctx context.Context, resourceName string) error 
 // UpdateInput contains the data for updating a contact.
 // Only non-nil fields will be updated.
 type UpdateInput struct {
-	FirstName    *string
-	LastName     *string
-	Phone        *string      // Replaces first phone (backward compat)
-	Phones       []PhoneEntry // Replaces all phones (new multi-phone)
-	AddPhones    []PhoneEntry // Add phones without removing existing
-	RemovePhones []string     // Remove phones by value
-	Email        *string      // Replaces first email (backward compat)
-	Emails       []EmailEntry // Replaces all emails (new multi-email)
-	AddEmails    []EmailEntry // Add emails without removing existing
-	RemoveEmails []string     // Remove emails by value
-	Company      *string
-	Position     *string
-	Notes        *string
+	FirstName     *string
+	LastName      *string
+	Phone         *string      // Replaces first phone (backward compat)
+	Phones        []PhoneEntry // Replaces all phones (new multi-phone)
+	AddPhones     []PhoneEntry // Add phones without removing existing
+	RemovePhones  []string     // Remove phones by value
+	Email         *string      // Replaces first email (backward compat)
+	Emails        []EmailEntry // Replaces all emails (new multi-email)
+	AddEmails     []EmailEntry // Add emails without removing existing
+	RemoveEmails  []string     // Remove emails by value
+	Company       *string
+	Position      *string
+	Notes         *string
+	Birthday      *string // Format: YYYY-MM-DD or --MM-DD (month/day only)
+	ClearBirthday bool    // Set to true to remove birthday
 }
 
 // UpdateContact updates an existing contact with the provided fields.
@@ -348,7 +424,7 @@ func (s *Service) UpdateContact(ctx context.Context, resourceName string, input 
 
 	// First, fetch the current contact to get etag and merge changes
 	current, err := s.People.Get(resourceName).
-		PersonFields("names,phoneNumbers,emailAddresses,organizations,biographies,metadata").
+		PersonFields("names,phoneNumbers,emailAddresses,organizations,biographies,birthdays,metadata").
 		Context(ctx).
 		Do()
 	if err != nil {
@@ -527,6 +603,19 @@ func (s *Service) UpdateContact(ctx context.Context, resourceName string, input 
 		updateFields = append(updateFields, "biographies")
 	}
 
+	// Update birthday if provided
+	if input.ClearBirthday {
+		// Clear birthday by setting to empty slice
+		current.Birthdays = nil
+		updateFields = append(updateFields, "birthdays")
+	} else if input.Birthday != nil {
+		birthday := parseBirthday(*input.Birthday)
+		if birthday != nil {
+			current.Birthdays = []*people.Birthday{birthday}
+			updateFields = append(updateFields, "birthdays")
+		}
+	}
+
 	// If no fields to update, return current details
 	if len(updateFields) == 0 {
 		return s.GetContactDetails(ctx, resourceName)
@@ -535,7 +624,7 @@ func (s *Service) UpdateContact(ctx context.Context, resourceName string, input 
 	// Perform the update
 	updated, err := s.People.UpdateContact(resourceName, current).
 		UpdatePersonFields(strings.Join(updateFields, ",")).
-		PersonFields("names,phoneNumbers,emailAddresses,organizations,biographies,metadata").
+		PersonFields("names,phoneNumbers,emailAddresses,organizations,biographies,birthdays,metadata").
 		Context(ctx).
 		Do()
 	if err != nil {
@@ -591,6 +680,11 @@ func (s *Service) UpdateContact(ctx context.Context, resourceName string, input 
 		details.Notes = updated.Biographies[0].Value
 	}
 
+	// Extract birthday
+	if len(updated.Birthdays) > 0 {
+		details.Birthday = formatBirthday(updated.Birthdays[0])
+	}
+
 	// Extract metadata (creation/update times)
 	if updated.Metadata != nil {
 		for _, source := range updated.Metadata.Sources {
@@ -615,7 +709,7 @@ func (s *Service) GetContactDetails(ctx context.Context, resourceName string) (*
 	}
 
 	p, err := s.People.Get(resourceName).
-		PersonFields("names,phoneNumbers,emailAddresses,organizations,biographies,metadata").
+		PersonFields("names,phoneNumbers,emailAddresses,organizations,biographies,birthdays,metadata").
 		Context(ctx).
 		Do()
 	if err != nil {
@@ -668,6 +762,11 @@ func (s *Service) GetContactDetails(ctx context.Context, resourceName string) (*
 	// Extract notes
 	if len(p.Biographies) > 0 {
 		details.Notes = p.Biographies[0].Value
+	}
+
+	// Extract birthday
+	if len(p.Birthdays) > 0 {
+		details.Birthday = formatBirthday(p.Birthdays[0])
 	}
 
 	// Extract metadata (creation/update times)

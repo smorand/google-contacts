@@ -33,6 +33,7 @@ var (
 	createCompany   string
 	createPosition  string
 	createNotes     string
+	createBirthday  string // Format: YYYY-MM-DD or --MM-DD
 )
 
 // Delete command flags
@@ -42,19 +43,21 @@ var (
 
 // Update command flags
 var (
-	updateFirstName string
-	updateLastName  string
-	updatePhone     string   // Backward compatible: replaces first phone
-	updatePhones    []string // Replaces all phones
-	updateAddPhones []string // Add phones without removing existing
-	updateRemPhones []string // Remove phones by value
-	updateEmail     string   // Backward compatible: replaces first email
-	updateEmails    []string // Replaces all emails
-	updateAddEmails []string // Add emails without removing existing
-	updateRemEmails []string // Remove emails by value
-	updateCompany   string
-	updatePosition  string
-	updateNotes     string
+	updateFirstName     string
+	updateLastName      string
+	updatePhone         string   // Backward compatible: replaces first phone
+	updatePhones        []string // Replaces all phones
+	updateAddPhones     []string // Add phones without removing existing
+	updateRemPhones     []string // Remove phones by value
+	updateEmail         string   // Backward compatible: replaces first email
+	updateEmails        []string // Replaces all emails
+	updateAddEmails     []string // Add emails without removing existing
+	updateRemEmails     []string // Remove emails by value
+	updateCompany       string
+	updatePosition      string
+	updateNotes         string
+	updateBirthday      string // Format: YYYY-MM-DD or --MM-DD
+	updateClearBirthday bool   // Clear birthday
 )
 
 // Command definitions
@@ -91,13 +94,18 @@ Email format:
 
 Email types: work (default), home, other
 
+Birthday format:
+  - Full date: YYYY-MM-DD (e.g., "1985-03-15")
+  - Month/day only: --MM-DD (e.g., "--03-15" when year is unknown)
+
 Recommended fields:
   --company, -c:   Company name
 
 Optional fields:
   --email, -e:     Email address (can be repeated for multiple emails)
   --position, -r:  Role/position at company
-  --notes, -n:     Notes about the contact`,
+  --notes, -n:     Notes about the contact
+  --birthday, -b:  Birthday (YYYY-MM-DD or --MM-DD)`,
 		Example: `  # Create contact with single phone (defaults to mobile)
   google-contacts create -f John -l Doe -p +33612345678
 
@@ -113,8 +121,14 @@ Optional fields:
   # Create contact with multiple emails
   google-contacts create -f John -l Doe -p +33612345678 -e "work:john@acme.com" -e "home:john@gmail.com"
 
+  # Create contact with birthday (full date)
+  google-contacts create -f John -l Doe -p +33612345678 -b 1985-03-15
+
+  # Create contact with birthday (month/day only, year unknown)
+  google-contacts create -f John -l Doe -p +33612345678 -b "--03-15"
+
   # Create contact with all fields
-  google-contacts create -f John -l Doe -p +33612345678 -c "Acme Inc" -r "CTO" -e john@acme.com -n "Met at conference"`,
+  google-contacts create -f John -l Doe -p +33612345678 -c "Acme Inc" -r "CTO" -e john@acme.com -b 1985-03-15 -n "Met at conference"`,
 		RunE: runCreate,
 	}
 
@@ -225,6 +239,10 @@ Email management options:
 Email format: "type:email" or just "email" (defaults to work)
 Email types: work (default), home, other
 
+Birthday management:
+  --birthday, -b:    Update birthday (YYYY-MM-DD or --MM-DD)
+  --clear-birthday:  Remove birthday from contact
+
 Other fields:
   --firstname, -f: Update first name
   --lastname, -l:  Update last name
@@ -259,7 +277,16 @@ Other fields:
   google-contacts update c123456789 --remove-email "old@acme.com"
 
   # Update company information
-  google-contacts update c123456789 --company "New Corp" --position "CEO"`,
+  google-contacts update c123456789 --company "New Corp" --position "CEO"
+
+  # Set birthday
+  google-contacts update c123456789 --birthday 1985-03-15
+
+  # Set birthday (month/day only)
+  google-contacts update c123456789 --birthday "--03-15"
+
+  # Remove birthday
+  google-contacts update c123456789 --clear-birthday`,
 		Args: cobra.ExactArgs(1),
 		RunE: runUpdate,
 	}
@@ -377,6 +404,7 @@ func runCreate(cmd *cobra.Command, args []string) error {
 		Company:   createCompany,
 		Position:  createPosition,
 		Notes:     createNotes,
+		Birthday:  createBirthday,
 	}
 
 	created, err := srv.CreateContact(ctx, input)
@@ -586,6 +614,15 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 		hasUpdates = true
 	}
 
+	// Birthday update options
+	if updateClearBirthday {
+		input.ClearBirthday = true
+		hasUpdates = true
+	} else if cmd.Flags().Changed("birthday") {
+		input.Birthday = &updateBirthday
+		hasUpdates = true
+	}
+
 	// Check if any fields were provided
 	if !hasUpdates {
 		return fmt.Errorf("no fields specified to update. Use --help to see available flags")
@@ -789,6 +826,12 @@ func displayFullContactDetails(details *contacts.ContactDetails) {
 		}
 	}
 
+	// Birthday
+	if details.Birthday != "" {
+		fmt.Println()
+		fmt.Printf("  %s: %s\n", cyan("Birthday"), formatBirthdayDisplay(details.Birthday))
+	}
+
 	// Notes
 	if details.Notes != "" {
 		fmt.Println()
@@ -878,6 +921,52 @@ func formatTime(isoTime string) string {
 	return isoTime
 }
 
+// formatBirthdayDisplay formats a birthday string for human-readable display.
+// Input format: "YYYY-MM-DD" or "--MM-DD" (if year unknown)
+// Output format: "March 15, 1985" or "March 15" (if year unknown)
+func formatBirthdayDisplay(birthday string) string {
+	if birthday == "" {
+		return ""
+	}
+
+	months := []string{
+		"", "January", "February", "March", "April", "May", "June",
+		"July", "August", "September", "October", "November", "December",
+	}
+
+	if strings.HasPrefix(birthday, "--") {
+		// Format: --MM-DD (month and day only)
+		parts := strings.Split(birthday[2:], "-")
+		if len(parts) != 2 {
+			return birthday
+		}
+		month := 0
+		day := 0
+		fmt.Sscanf(parts[0], "%d", &month)
+		fmt.Sscanf(parts[1], "%d", &day)
+		if month >= 1 && month <= 12 {
+			return fmt.Sprintf("%s %d", months[month], day)
+		}
+		return birthday
+	}
+
+	// Format: YYYY-MM-DD
+	parts := strings.Split(birthday, "-")
+	if len(parts) != 3 {
+		return birthday
+	}
+	year := 0
+	month := 0
+	day := 0
+	fmt.Sscanf(parts[0], "%d", &year)
+	fmt.Sscanf(parts[1], "%d", &month)
+	fmt.Sscanf(parts[2], "%d", &day)
+	if month >= 1 && month <= 12 {
+		return fmt.Sprintf("%s %d, %d", months[month], day, year)
+	}
+	return birthday
+}
+
 // Init initializes the CLI commands and flags.
 func Init() {
 	// Add version flag to root command
@@ -892,6 +981,7 @@ func Init() {
 	createCmd.Flags().StringVarP(&createCompany, "company", "c", "", "Company name")
 	createCmd.Flags().StringVarP(&createPosition, "position", "r", "", "Role/position at company")
 	createCmd.Flags().StringVarP(&createNotes, "notes", "n", "", "Notes about the contact")
+	createCmd.Flags().StringVarP(&createBirthday, "birthday", "b", "", "Birthday (YYYY-MM-DD or --MM-DD)")
 
 	// Setup delete command flags
 	deleteCmd.Flags().BoolVarP(&deleteForce, "force", "f", false, "Skip confirmation prompt")
@@ -910,6 +1000,8 @@ func Init() {
 	updateCmd.Flags().StringVarP(&updateCompany, "company", "c", "", "Company name")
 	updateCmd.Flags().StringVarP(&updatePosition, "position", "r", "", "Role/position at company")
 	updateCmd.Flags().StringVarP(&updateNotes, "notes", "n", "", "Notes about the contact")
+	updateCmd.Flags().StringVarP(&updateBirthday, "birthday", "b", "", "Birthday (YYYY-MM-DD or --MM-DD)")
+	updateCmd.Flags().BoolVar(&updateClearBirthday, "clear-birthday", false, "Remove birthday from contact")
 
 	// Register commands
 	RootCmd.AddCommand(versionCmd)
