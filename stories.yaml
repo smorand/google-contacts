@@ -1218,7 +1218,7 @@
   - SKILL.md mentions birthday extraction from screenshots
   - Create workflow includes birthday in confirmation
   - Update workflow shows birthday modification examples
-  passes: false
+  passes: true
 
 - id: US-00026
   title: "google-contacts skill: Document address support"
