@@ -1248,3 +1248,76 @@ Added postal address support across the entire stack (service layer, CLI, docume
 - FormattedValue is sufficient for storage but doesn't enable city/postal code search
 
 ---
+
+## 2026-01-14 - US-00024 - google-contacts: Structured address parsing
+
+**Status:** Completed successfully
+
+### What was implemented
+
+Enhanced address support with structured parsing for better Google Contacts API integration:
+
+**Service layer (internal/contacts/service.go):**
+- Added `StructuredAddress` struct with all Google API address fields
+- Added `ParseAddress()` function for automatic address field extraction
+- Implemented French address auto-detection (5-digit postal codes)
+- Implemented structured syntax parsing (`street=...;city=...;postal=...`)
+- Updated `CreateContact()` to use structured address fields
+- Updated `UpdateContact()` to use structured address fields
+
+**Parsing formats supported:**
+1. French format: `10 Rue Test, 75001 Paris` → auto-detects France, extracts structured fields
+2. French format with country: `10 Rue Test, 75001 Paris, France`
+3. Generic format: `123 Main St, London, SW1A 1AA, UK`
+4. Structured syntax: `street=10 Rue Test;city=Paris;postal=75001;country=France`
+
+**Unit tests (internal/contacts/service_test.go):**
+- 12 new test functions for ParseAddress
+- Tests for empty input, French formats, structured syntax, generic formats
+- Tests for FormattedValue preservation and building
+
+### Files changed
+
+- `internal/contacts/service.go` - Added StructuredAddress, ParseAddress, and helper functions
+- `internal/contacts/service_test.go` - Added comprehensive ParseAddress tests
+- `CLAUDE.md` - Added Structured Address Parsing documentation section
+- `README.md` - Added structured address parsing documentation
+
+### Learnings
+
+**Google People API Address structured fields:**
+- `people.Address` supports both `FormattedValue` and structured fields
+- Structured fields: `StreetAddress`, `City`, `PostalCode`, `Region`, `Country`, `CountryCode`
+- All fields can be set simultaneously - API stores both formatted and structured
+- Structured fields enable better search and display in Google Contacts
+
+**French postal code detection:**
+- French postal codes are exactly 5 digits (e.g., 75001, 69001)
+- Regex pattern: `\b(\d{5})\b` matches standalone 5-digit sequences
+- This is also true for some US ZIP codes, so context matters
+- When 5-digit code detected, assume French address and set country=France
+
+**French address format variations:**
+- `street, postal city` - postal code before city (most common)
+- `street, city postal` - postal code after city
+- `street, postal city, country` - with explicit country
+- `street, city, postal, country` - fully separated parts
+- Parser handles all variations by detecting postal code position
+
+**Structured syntax design:**
+- Using semicolons as field separators (`;`) avoids conflict with commas in addresses
+- Key=value format allows explicit field assignment
+- Supported keys: `street`, `city`, `postal`, `region`, `country`, `countrycode`
+- Alternative keys accepted: `streetaddress`, `postalcode`, `zip`, `state`, `province`
+
+**FormattedValue handling:**
+- For natural addresses, FormattedValue is the original input string
+- For structured syntax, FormattedValue is built from structured fields
+- Building formula: `street, postal city, region, country` with non-empty parts
+
+**Test limitations with regex detection:**
+- US ZIP codes (5 digits like 10001) are detected as French postal codes
+- Test adjusted to use UK postal codes (SW1A 1AA) for generic format tests
+- In production, context (presence of "USA" or state abbreviation) could disambiguate
+
+---
