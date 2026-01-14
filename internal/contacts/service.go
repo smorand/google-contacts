@@ -51,8 +51,8 @@ func (s *Service) TestConnection(ctx context.Context) error {
 type ContactInput struct {
 	FirstName string
 	LastName  string
-	Phones    []PhoneEntry  // Multiple phones with types
-	Emails    []EmailEntry  // Multiple emails with types
+	Phones    []PhoneEntry // Multiple phones with types
+	Emails    []EmailEntry // Multiple emails with types
 	Company   string
 	Position  string
 	Notes     string

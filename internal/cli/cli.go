@@ -42,19 +42,19 @@ var (
 
 // Update command flags
 var (
-	updateFirstName  string
-	updateLastName   string
-	updatePhone      string   // Backward compatible: replaces first phone
-	updatePhones     []string // Replaces all phones
-	updateAddPhones  []string // Add phones without removing existing
-	updateRemPhones  []string // Remove phones by value
-	updateEmail      string   // Backward compatible: replaces first email
-	updateEmails     []string // Replaces all emails
-	updateAddEmails  []string // Add emails without removing existing
-	updateRemEmails  []string // Remove emails by value
-	updateCompany    string
-	updatePosition   string
-	updateNotes      string
+	updateFirstName string
+	updateLastName  string
+	updatePhone     string   // Backward compatible: replaces first phone
+	updatePhones    []string // Replaces all phones
+	updateAddPhones []string // Add phones without removing existing
+	updateRemPhones []string // Remove phones by value
+	updateEmail     string   // Backward compatible: replaces first email
+	updateEmails    []string // Replaces all emails
+	updateAddEmails []string // Add emails without removing existing
+	updateRemEmails []string // Remove emails by value
+	updateCompany   string
+	updatePosition  string
+	updateNotes     string
 )
 
 // Command definitions
