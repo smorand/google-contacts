@@ -295,16 +295,17 @@ The `Service` struct embeds `*people.Service` for full People API access.
 ### ContactInput and CreatedContact
 
 ```go
-// Input for creating a contact (supports multiple phones and emails)
+// Input for creating a contact (supports multiple phones, emails, and addresses)
 type ContactInput struct {
-    FirstName string        // Required
-    LastName  string        // Required
-    Phones    []PhoneEntry  // Required (at least one)
-    Emails    []EmailEntry  // Optional (multiple emails with types)
-    Company   string        // Optional
-    Position  string        // Optional
-    Notes     string        // Optional
-    Birthday  string        // Optional (YYYY-MM-DD or --MM-DD)
+    FirstName string          // Required
+    LastName  string          // Required
+    Phones    []PhoneEntry    // Required (at least one)
+    Emails    []EmailEntry    // Optional (multiple emails with types)
+    Addresses []AddressEntry  // Optional (multiple addresses with types)
+    Company   string          // Optional
+    Position  string          // Optional
+    Notes     string          // Optional
+    Birthday  string          // Optional (YYYY-MM-DD or --MM-DD)
 }
 
 // PhoneEntry represents a phone with type label
@@ -317,6 +318,12 @@ type PhoneEntry struct {
 type EmailEntry struct {
     Value string  // e.g., "john@acme.com"
     Type  string  // work, home, other (default: work)
+}
+
+// AddressEntry represents a postal address with type label
+type AddressEntry struct {
+    Value string  // e.g., "10 Rue Example, 75001 Paris, France"
+    Type  string  // home, work, other (default: home)
 }
 
 // Result of contact creation
@@ -350,17 +357,30 @@ Email format in CLI: `type:email` or just `email` (defaults to work)
 - Simple: `john@acme.com` → work
 - Typed: `home:john@gmail.com` → home
 
+### Address Types
+
+Valid address types for create/update commands:
+- `home` - Home address (default if not specified)
+- `work` - Work address
+- `other` - Other address
+
+Address format in CLI: `type:address` or just `address` (defaults to home)
+- Simple: `10 Rue Example, 75001 Paris, France` → home
+- Typed: `work:50 Avenue Business, Lyon, 69001` → work
+
 ### Common PersonFields
 
 When calling People API methods, use `PersonFields()` to specify which fields to return:
 - `names` - First name, last name
 - `phoneNumbers` - Phone numbers with labels
 - `emailAddresses` - Email addresses with labels
+- `addresses` - Postal addresses with labels
 - `organizations` - Company, job title
 - `biographies` - Notes/bio text
+- `birthdays` - Birthday dates
 - `metadata` - Creation/update times, sources
 
-Example: `PersonFields("names,phoneNumbers,emailAddresses,organizations")`
+Example: `PersonFields("names,phoneNumbers,emailAddresses,addresses,organizations")`
 
 ### People API Patterns
 
@@ -422,7 +442,7 @@ contact, err := srv.GetContact(ctx, "c123456789")  // ID only also works
 
 **GetContactDetails for full information:**
 ```go
-// GetContactDetails returns all phones, emails with labels, and metadata
+// GetContactDetails returns all phones, emails, addresses with labels, and metadata
 details, err := srv.GetContactDetails(ctx, "c123456789")
 
 // ContactDetails contains complete contact information
@@ -431,17 +451,18 @@ type ContactDetails struct {
     FirstName    string
     LastName     string
     DisplayName  string
-    Phones       []PhoneEntry  // All phones with labels
-    Emails       []EmailEntry  // All emails with labels
+    Phones       []PhoneEntry    // All phones with labels
+    Emails       []EmailEntry    // All emails with labels
+    Addresses    []AddressEntry  // All addresses with labels
     Company      string
     Position     string
     Notes        string
-    Birthday     string        // Format: YYYY-MM-DD or --MM-DD (if year unknown)
+    Birthday     string          // Format: YYYY-MM-DD or --MM-DD (if year unknown)
     CreatedAt    string
     UpdatedAt    string
 }
 
-// PhoneEntry and EmailEntry include type labels
+// PhoneEntry, EmailEntry, and AddressEntry include type labels
 type PhoneEntry struct {
     Value string  // e.g., "+33612345678"
     Type  string  // e.g., "mobile", "work", "home"
@@ -449,6 +470,10 @@ type PhoneEntry struct {
 type EmailEntry struct {
     Value string  // e.g., "john@acme.com"
     Type  string  // e.g., "work", "home"
+}
+type AddressEntry struct {
+    Value string  // e.g., "10 Rue Example, 75001 Paris"
+    Type  string  // e.g., "home", "work"
 }
 ```
 
@@ -470,21 +495,24 @@ err := srv.DeleteContact(ctx, "people/c123456789")
 ```go
 // UpdateInput uses pointers to distinguish "not provided" from "empty value"
 type UpdateInput struct {
-    FirstName     *string       // Optional - only update if non-nil
-    LastName      *string       // Optional
-    Phone         *string       // Optional - replaces first phone (backward compat)
-    Phones        []PhoneEntry  // Optional - replaces ALL phones
-    AddPhones     []PhoneEntry  // Optional - add phones without removing existing
-    RemovePhones  []string      // Optional - remove phones by value
-    Email         *string       // Optional - replaces first email (backward compat)
-    Emails        []EmailEntry  // Optional - replaces ALL emails
-    AddEmails     []EmailEntry  // Optional - add emails without removing existing
-    RemoveEmails  []string      // Optional - remove emails by value
-    Company       *string       // Optional
-    Position      *string       // Optional
-    Notes         *string       // Optional
-    Birthday      *string       // Optional - sets birthday (YYYY-MM-DD or --MM-DD)
-    ClearBirthday bool          // Optional - set to true to remove birthday
+    FirstName       *string         // Optional - only update if non-nil
+    LastName        *string         // Optional
+    Phone           *string         // Optional - replaces first phone (backward compat)
+    Phones          []PhoneEntry    // Optional - replaces ALL phones
+    AddPhones       []PhoneEntry    // Optional - add phones without removing existing
+    RemovePhones    []string        // Optional - remove phones by value
+    Email           *string         // Optional - replaces first email (backward compat)
+    Emails          []EmailEntry    // Optional - replaces ALL emails
+    AddEmails       []EmailEntry    // Optional - add emails without removing existing
+    RemoveEmails    []string        // Optional - remove emails by value
+    Addresses       []AddressEntry  // Optional - replaces ALL addresses
+    AddAddresses    []AddressEntry  // Optional - add addresses without removing existing
+    RemoveAddresses []string        // Optional - remove addresses by street content match
+    Company         *string         // Optional
+    Position        *string         // Optional
+    Notes           *string         // Optional
+    Birthday        *string         // Optional - sets birthday (YYYY-MM-DD or --MM-DD)
+    ClearBirthday   bool            // Optional - set to true to remove birthday
 }
 
 // UpdateContact merges changes with existing contact
@@ -511,6 +539,16 @@ details, err := srv.UpdateContact(ctx, "c123456789", contacts.UpdateInput{
 details, err := srv.UpdateContact(ctx, "c123456789", contacts.UpdateInput{
     RemoveEmails: []string{"old@acme.com"},
 })
+
+// Add an address without removing existing
+details, err := srv.UpdateContact(ctx, "c123456789", contacts.UpdateInput{
+    AddAddresses: []contacts.AddressEntry{{Value: "50 Avenue Business, Lyon", Type: "work"}},
+})
+
+// Remove an address by street content match
+details, err := srv.UpdateContact(ctx, "c123456789", contacts.UpdateInput{
+    RemoveAddresses: []string{"Avenue Business"},
+})
 ```
 
 **Update API pattern:**
@@ -531,6 +569,11 @@ details, err := srv.UpdateContact(ctx, "c123456789", contacts.UpdateInput{
 2. `--emails`: Replaces ALL emails with new ones
 3. `--add-email`: Adds email(s) without removing existing
 4. `--remove-email`: Removes specific email(s) by value
+
+**Address update options:**
+1. `--addresses`: Replaces ALL addresses with new ones
+2. `--add-address`: Adds address(es) without removing existing
+3. `--remove-address`: Removes addresses by street content match
 
 **Birthday update options:**
 - `--birthday` (or `-b`): Sets birthday (format: YYYY-MM-DD or --MM-DD)

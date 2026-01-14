@@ -4,11 +4,12 @@ A command-line tool for managing Google Contacts using Google People API v1.
 
 ## Features
 
-- Create new contacts with name, phone, email, company, birthday, and notes
+- Create new contacts with name, phone, email, address, company, birthday, and notes
 - Search contacts by name, email, phone, or company
-- View detailed contact information including birthday
+- View detailed contact information including addresses and birthday
 - Update existing contacts (modify only specified fields)
 - Delete contacts with confirmation prompt
+- Supports multiple phones, emails, and addresses with type labels
 - Supports birthday with or without year (YYYY-MM-DD or --MM-DD)
 - Shares credentials with email-manager for unified OAuth consent
 
@@ -99,6 +100,14 @@ google-contacts create -f John -l Doe -p +33612345678 -b 1985-03-15
 # Create with birthday (month/day only, when year is unknown)
 google-contacts create -f John -l Doe -p +33612345678 -b "--03-15"
 
+# Create with address
+google-contacts create -f John -l Doe -p +33612345678 \
+  -a "10 Rue Example, 75001 Paris, France"
+
+# Create with typed address
+google-contacts create -f John -l Doe -p +33612345678 \
+  -a "work:50 Avenue Business, Lyon, 69001"
+
 # Create with all fields
 google-contacts create \
   --firstname John \
@@ -107,6 +116,8 @@ google-contacts create \
   --phone "work:+33123456789" \
   --email "work:john@acme.com" \
   --email "home:john@gmail.com" \
+  --address "home:10 Rue Example, Paris" \
+  --address "work:50 Avenue Business, Lyon" \
   --company "Acme Inc" \
   --position "CTO" \
   --birthday 1985-03-15 \
@@ -120,6 +131,7 @@ google-contacts create \
 | `--lastname` | `-l` | Yes | Last name |
 | `--phone` | `-p` | Yes | Phone number (can be repeated) |
 | `--email` | `-e` | No | Email address (can be repeated) |
+| `--address` | `-a` | No | Postal address (can be repeated) |
 | `--company` | `-c` | No | Company name |
 | `--position` | `-r` | No | Role/position at company |
 | `--birthday` | `-b` | No | Birthday (YYYY-MM-DD or --MM-DD) |
@@ -138,6 +150,13 @@ google-contacts create \
 - Multiple: Use `-e` flag multiple times
 
 **Email types:** `work` (default), `home`, `other`
+
+**Address format:**
+- Simple: `10 Rue Example, 75001 Paris` (defaults to "home" type)
+- With type: `work:50 Avenue Business, Lyon`
+- Multiple: Use `-a` flag multiple times
+
+**Address types:** `home` (default), `work`, `other`
 
 **Birthday format:**
 - Full date: `YYYY-MM-DD` (e.g., `1985-03-15`)
@@ -192,6 +211,7 @@ google-contacts show people/c123456789
 - Full name (first and last)
 - All phone numbers with labels (mobile, work, home, etc.)
 - All email addresses with labels
+- All postal addresses with labels
 - Company and position
 - Birthday (formatted as "March 15, 1985" or "March 15" if no year)
 - Notes
@@ -212,6 +232,10 @@ Contact Details
     • +33612345678 (mobile)
     • +33145678901 (work)
   Email: john@acme.com (work)
+
+  Addresses:
+    • 10 Rue Example, 75001 Paris (home)
+    • 50 Avenue Business, Lyon, 69001 (work)
 
   Company: Acme Inc
   Position: CTO
@@ -261,6 +285,17 @@ google-contacts update c123456789 --add-email "home:john@gmail.com"
 # Remove a specific email by value
 google-contacts update c123456789 --remove-email "old@acme.com"
 
+# Replace ALL addresses with new ones
+google-contacts update c123456789 \
+  --addresses "home:10 Rue Example, Paris" \
+  --addresses "work:50 Avenue Business, Lyon"
+
+# Add a work address without removing existing
+google-contacts update c123456789 --add-address "work:50 Avenue Business, Lyon"
+
+# Remove an address by street content match
+google-contacts update c123456789 --remove-address "Avenue Business"
+
 # Update company information
 google-contacts update c123456789 --company "New Corp" --position "CEO"
 
@@ -298,6 +333,13 @@ google-contacts update c123456789 --clear-birthday
 | `--emails` | | Replace ALL emails (can be repeated) |
 | `--add-email` | | Add email without removing existing (can be repeated) |
 | `--remove-email` | | Remove specific email by value (can be repeated) |
+
+**Address Management Flags:**
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--addresses` | | Replace ALL addresses (can be repeated) |
+| `--add-address` | | Add address without removing existing (can be repeated) |
+| `--remove-address` | | Remove address by street content match (can be repeated) |
 
 **Birthday Management Flags:**
 | Flag | Short | Description |
