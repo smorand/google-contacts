@@ -935,7 +935,7 @@
   - Update workflow shows before/after
   - Natural language examples for delete
   - Natural language examples for update
-  passes: false
+  passes: true
 
 - id: US-00021
   title: "google-contacts skill: Document multiple phones/emails support"
