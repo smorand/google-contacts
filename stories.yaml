@@ -1166,7 +1166,7 @@
   - create with French address stores structured data
   - Google Contacts web UI shows address with correct structure
   - Address is searchable by city in Google Contacts
-  passes: false
+  passes: true
 
 - id: US-00025
   title: "google-contacts skill: Document birthday support"
