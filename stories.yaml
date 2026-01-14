@@ -1278,7 +1278,7 @@
   - SKILL.md mentions French address auto-detection
   - Screenshot extraction mentions address fields
   - Update workflow shows address modification examples
-  passes: false
+  passes: true
 
 # =============================================================================
 # DEPLOYMENT NOTE

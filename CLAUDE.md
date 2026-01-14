@@ -179,6 +179,9 @@ The project includes a Claude skill at `~/.claude/skills/google-contacts/` that 
 - **Contact deletion**: "Delete the contact for Jean Dupont"
 - **Mandatory validation**: All contact creation requires user confirmation before execution
 - **Name recognition**: Intelligent parsing of first/last names with confidence levels
+- **Multiple phones/emails support**: "Add his work phone: 0123456789"
+- **Birthday support**: "Jean's birthday is March 15, 1985"
+- **Address support**: "Add his address: 10 Rue Example, 75001 Paris" with French auto-detection
 
 ### Updating the Skill
 
