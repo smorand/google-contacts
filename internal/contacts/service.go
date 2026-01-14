@@ -51,8 +51,9 @@ func (s *Service) TestConnection(ctx context.Context) error {
 type ContactInput struct {
 	FirstName string
 	LastName  string
-	Phones    []PhoneEntry // Multiple phones with types
-	Emails    []EmailEntry // Multiple emails with types
+	Phones    []PhoneEntry    // Multiple phones with types
+	Emails    []EmailEntry    // Multiple emails with types
+	Addresses []AddressEntry  // Multiple addresses with types
 	Company   string
 	Position  string
 	Notes     string
@@ -88,6 +89,12 @@ type EmailEntry struct {
 	Type  string // work, home, etc.
 }
 
+// AddressEntry represents a postal address with its label.
+type AddressEntry struct {
+	Value string // Formatted address string
+	Type  string // home, work, other
+}
+
 // ContactDetails contains full information for a single contact.
 type ContactDetails struct {
 	ResourceName string
@@ -96,6 +103,7 @@ type ContactDetails struct {
 	DisplayName  string
 	Phones       []PhoneEntry
 	Emails       []EmailEntry
+	Addresses    []AddressEntry
 	Company      string
 	Position     string
 	Notes        string
@@ -238,9 +246,21 @@ func (s *Service) CreateContact(ctx context.Context, input ContactInput) (*Creat
 		}
 	}
 
+	// Add addresses (optional, with types)
+	for _, addr := range input.Addresses {
+		addrType := addr.Type
+		if addrType == "" {
+			addrType = "home"
+		}
+		person.Addresses = append(person.Addresses, &people.Address{
+			FormattedValue: addr.Value,
+			Type:           addrType,
+		})
+	}
+
 	// Create the contact
 	created, err := s.People.CreateContact(person).
-		PersonFields("names,phoneNumbers,emailAddresses,organizations,biographies,birthdays").
+		PersonFields("names,phoneNumbers,emailAddresses,organizations,biographies,birthdays,addresses").
 		Context(ctx).
 		Do()
 	if err != nil {
@@ -396,21 +416,24 @@ func (s *Service) DeleteContact(ctx context.Context, resourceName string) error 
 // UpdateInput contains the data for updating a contact.
 // Only non-nil fields will be updated.
 type UpdateInput struct {
-	FirstName     *string
-	LastName      *string
-	Phone         *string      // Replaces first phone (backward compat)
-	Phones        []PhoneEntry // Replaces all phones (new multi-phone)
-	AddPhones     []PhoneEntry // Add phones without removing existing
-	RemovePhones  []string     // Remove phones by value
-	Email         *string      // Replaces first email (backward compat)
-	Emails        []EmailEntry // Replaces all emails (new multi-email)
-	AddEmails     []EmailEntry // Add emails without removing existing
-	RemoveEmails  []string     // Remove emails by value
-	Company       *string
-	Position      *string
-	Notes         *string
-	Birthday      *string // Format: YYYY-MM-DD or --MM-DD (month/day only)
-	ClearBirthday bool    // Set to true to remove birthday
+	FirstName       *string
+	LastName        *string
+	Phone           *string        // Replaces first phone (backward compat)
+	Phones          []PhoneEntry   // Replaces all phones (new multi-phone)
+	AddPhones       []PhoneEntry   // Add phones without removing existing
+	RemovePhones    []string       // Remove phones by value
+	Email           *string        // Replaces first email (backward compat)
+	Emails          []EmailEntry   // Replaces all emails (new multi-email)
+	AddEmails       []EmailEntry   // Add emails without removing existing
+	RemoveEmails    []string       // Remove emails by value
+	Addresses       []AddressEntry // Replaces all addresses
+	AddAddresses    []AddressEntry // Add addresses without removing existing
+	RemoveAddresses []string       // Remove addresses by street content match
+	Company         *string
+	Position        *string
+	Notes           *string
+	Birthday        *string // Format: YYYY-MM-DD or --MM-DD (month/day only)
+	ClearBirthday   bool    // Set to true to remove birthday
 }
 
 // UpdateContact updates an existing contact with the provided fields.
@@ -424,7 +447,7 @@ func (s *Service) UpdateContact(ctx context.Context, resourceName string, input 
 
 	// First, fetch the current contact to get etag and merge changes
 	current, err := s.People.Get(resourceName).
-		PersonFields("names,phoneNumbers,emailAddresses,organizations,biographies,birthdays,metadata").
+		PersonFields("names,phoneNumbers,emailAddresses,addresses,organizations,biographies,birthdays,metadata").
 		Context(ctx).
 		Do()
 	if err != nil {
@@ -580,6 +603,64 @@ func (s *Service) UpdateContact(ctx context.Context, resourceName string, input 
 		updateFields = append(updateFields, "emailAddresses")
 	}
 
+	// Handle address updates (multiple options available)
+	addressUpdated := false
+
+	// Option 1: Addresses slice replaces all addresses
+	if len(input.Addresses) > 0 {
+		current.Addresses = nil
+		for _, addr := range input.Addresses {
+			addrType := addr.Type
+			if addrType == "" {
+				addrType = "home"
+			}
+			current.Addresses = append(current.Addresses, &people.Address{
+				FormattedValue: addr.Value,
+				Type:           addrType,
+			})
+		}
+		addressUpdated = true
+	}
+
+	// Option 2: AddAddresses adds without removing existing
+	if len(input.AddAddresses) > 0 {
+		for _, addr := range input.AddAddresses {
+			addrType := addr.Type
+			if addrType == "" {
+				addrType = "home"
+			}
+			current.Addresses = append(current.Addresses, &people.Address{
+				FormattedValue: addr.Value,
+				Type:           addrType,
+			})
+		}
+		addressUpdated = true
+	}
+
+	// Option 3: RemoveAddresses removes addresses by matching street content
+	if len(input.RemoveAddresses) > 0 {
+		var remaining []*people.Address
+		for _, addr := range current.Addresses {
+			shouldRemove := false
+			for _, removeValue := range input.RemoveAddresses {
+				// Match by checking if the address contains the removal string
+				if strings.Contains(addr.FormattedValue, removeValue) {
+					shouldRemove = true
+					break
+				}
+			}
+			if !shouldRemove {
+				remaining = append(remaining, addr)
+			}
+		}
+		current.Addresses = remaining
+		addressUpdated = true
+	}
+
+	if addressUpdated {
+		updateFields = append(updateFields, "addresses")
+	}
+
 	// Update organization if provided
 	if input.Company != nil || input.Position != nil {
 		if len(current.Organizations) == 0 {
@@ -624,7 +705,7 @@ func (s *Service) UpdateContact(ctx context.Context, resourceName string, input 
 	// Perform the update
 	updated, err := s.People.UpdateContact(resourceName, current).
 		UpdatePersonFields(strings.Join(updateFields, ",")).
-		PersonFields("names,phoneNumbers,emailAddresses,organizations,biographies,birthdays,metadata").
+		PersonFields("names,phoneNumbers,emailAddresses,addresses,organizations,biographies,birthdays,metadata").
 		Context(ctx).
 		Do()
 	if err != nil {
@@ -668,6 +749,18 @@ func (s *Service) UpdateContact(ctx context.Context, resourceName string, input 
 		details.Emails = append(details.Emails, entry)
 	}
 
+	// Extract all addresses with labels
+	for _, addr := range updated.Addresses {
+		entry := AddressEntry{
+			Value: addr.FormattedValue,
+			Type:  addr.Type,
+		}
+		if entry.Type == "" {
+			entry.Type = "other"
+		}
+		details.Addresses = append(details.Addresses, entry)
+	}
+
 	// Extract company and position
 	if len(updated.Organizations) > 0 {
 		org := updated.Organizations[0]
@@ -709,7 +802,7 @@ func (s *Service) GetContactDetails(ctx context.Context, resourceName string) (*
 	}
 
 	p, err := s.People.Get(resourceName).
-		PersonFields("names,phoneNumbers,emailAddresses,organizations,biographies,birthdays,metadata").
+		PersonFields("names,phoneNumbers,emailAddresses,addresses,organizations,biographies,birthdays,metadata").
 		Context(ctx).
 		Do()
 	if err != nil {
@@ -750,6 +843,18 @@ func (s *Service) GetContactDetails(ctx context.Context, resourceName string) (*
 			entry.Type = "other"
 		}
 		details.Emails = append(details.Emails, entry)
+	}
+
+	// Extract all addresses with labels
+	for _, addr := range p.Addresses {
+		entry := AddressEntry{
+			Value: addr.FormattedValue,
+			Type:  addr.Type,
+		}
+		if entry.Type == "" {
+			entry.Type = "other"
+		}
+		details.Addresses = append(details.Addresses, entry)
 	}
 
 	// Extract company and position

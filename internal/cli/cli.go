@@ -26,14 +26,15 @@ var RootCmd = &cobra.Command{
 
 // Create command flags
 var (
-	createFirstName string
-	createLastName  string
-	createPhones    []string // Multiple phones in format "type:number" or just "number"
-	createEmails    []string // Multiple emails in format "type:email" or just "email"
-	createCompany   string
-	createPosition  string
-	createNotes     string
-	createBirthday  string // Format: YYYY-MM-DD or --MM-DD
+	createFirstName  string
+	createLastName   string
+	createPhones     []string // Multiple phones in format "type:number" or just "number"
+	createEmails     []string // Multiple emails in format "type:email" or just "email"
+	createAddresses  []string // Multiple addresses in format "type:address" or just "address"
+	createCompany    string
+	createPosition   string
+	createNotes      string
+	createBirthday   string // Format: YYYY-MM-DD or --MM-DD
 )
 
 // Delete command flags
@@ -53,6 +54,9 @@ var (
 	updateEmails        []string // Replaces all emails
 	updateAddEmails     []string // Add emails without removing existing
 	updateRemEmails     []string // Remove emails by value
+	updateAddresses     []string // Replaces all addresses
+	updateAddAddrs      []string // Add addresses without removing existing
+	updateRemAddrs      []string // Remove addresses by street content match
 	updateCompany       string
 	updatePosition      string
 	updateNotes         string
@@ -94,6 +98,13 @@ Email format:
 
 Email types: work (default), home, other
 
+Address format:
+  - Simple: "123 Rue Example, Paris, 75001" (defaults to "home" type)
+  - With type: "work:123 Rue Example, Paris, 75001"
+  - Multiple: -a "home:10 Rue Test, Paris" -a "work:50 Avenue Business, Lyon"
+
+Address types: home (default), work, other
+
 Birthday format:
   - Full date: YYYY-MM-DD (e.g., "1985-03-15")
   - Month/day only: --MM-DD (e.g., "--03-15" when year is unknown)
@@ -103,6 +114,7 @@ Recommended fields:
 
 Optional fields:
   --email, -e:     Email address (can be repeated for multiple emails)
+  --address, -a:   Postal address (can be repeated for multiple addresses)
   --position, -r:  Role/position at company
   --notes, -n:     Notes about the contact
   --birthday, -b:  Birthday (YYYY-MM-DD or --MM-DD)`,
@@ -121,6 +133,12 @@ Optional fields:
   # Create contact with multiple emails
   google-contacts create -f John -l Doe -p +33612345678 -e "work:john@acme.com" -e "home:john@gmail.com"
 
+  # Create contact with address
+  google-contacts create -f John -l Doe -p +33612345678 -a "10 Rue Example, 75001 Paris, France"
+
+  # Create contact with typed address
+  google-contacts create -f John -l Doe -p +33612345678 -a "work:50 Avenue Business, Lyon, 69001"
+
   # Create contact with birthday (full date)
   google-contacts create -f John -l Doe -p +33612345678 -b 1985-03-15
 
@@ -128,7 +146,7 @@ Optional fields:
   google-contacts create -f John -l Doe -p +33612345678 -b "--03-15"
 
   # Create contact with all fields
-  google-contacts create -f John -l Doe -p +33612345678 -c "Acme Inc" -r "CTO" -e john@acme.com -b 1985-03-15 -n "Met at conference"`,
+  google-contacts create -f John -l Doe -p +33612345678 -c "Acme Inc" -r "CTO" -e john@acme.com -a "work:50 Avenue Business, Paris" -b 1985-03-15 -n "Met at conference"`,
 		RunE: runCreate,
 	}
 
@@ -239,6 +257,14 @@ Email management options:
 Email format: "type:email" or just "email" (defaults to work)
 Email types: work (default), home, other
 
+Address management options:
+  --addresses:       Replace ALL addresses (can be repeated)
+  --add-address:     Add an address without removing existing (can be repeated)
+  --remove-address:  Remove an address by street content match (can be repeated)
+
+Address format: "type:address" or just "address" (defaults to home)
+Address types: home (default), work, other
+
 Birthday management:
   --birthday, -b:    Update birthday (YYYY-MM-DD or --MM-DD)
   --clear-birthday:  Remove birthday from contact
@@ -275,6 +301,15 @@ Other fields:
 
   # Remove a specific email
   google-contacts update c123456789 --remove-email "old@acme.com"
+
+  # Replace all addresses
+  google-contacts update c123456789 --addresses "home:10 Rue Example, Paris" --addresses "work:50 Avenue Business, Lyon"
+
+  # Add a work address without removing existing
+  google-contacts update c123456789 --add-address "work:50 Avenue Business, Lyon, 69001"
+
+  # Remove an address by street match
+  google-contacts update c123456789 --remove-address "Rue Example"
 
   # Update company information
   google-contacts update c123456789 --company "New Corp" --position "CEO"
@@ -360,6 +395,43 @@ func parseEmails(emailStrs []string) ([]contacts.EmailEntry, error) {
 	return emails, nil
 }
 
+// parseAddresses parses address strings in format "type:address" or just "address".
+// Valid types: home (default), work, other
+func parseAddresses(addrStrs []string) ([]contacts.AddressEntry, error) {
+	validTypes := map[string]bool{
+		"home":  true,
+		"work":  true,
+		"other": true,
+	}
+
+	var addresses []contacts.AddressEntry
+	for _, as := range addrStrs {
+		var entry contacts.AddressEntry
+		if idx := strings.Index(as, ":"); idx > 0 {
+			// Check if this looks like a type prefix (short word before colon)
+			potentialType := strings.ToLower(as[:idx])
+			if validTypes[potentialType] {
+				// Format: type:address
+				entry.Type = potentialType
+				entry.Value = as[idx+1:]
+			} else {
+				// Not a valid type, treat whole string as address (defaults to home)
+				entry.Type = "home"
+				entry.Value = as
+			}
+		} else {
+			// Format: just address (defaults to home)
+			entry.Type = "home"
+			entry.Value = as
+		}
+		if entry.Value == "" {
+			return nil, fmt.Errorf("address cannot be empty")
+		}
+		addresses = append(addresses, entry)
+	}
+	return addresses, nil
+}
+
 func runCreate(cmd *cobra.Command, args []string) error {
 	// Validate required fields
 	if createFirstName == "" {
@@ -387,6 +459,15 @@ func runCreate(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	// Parse addresses (optional)
+	var addresses []contacts.AddressEntry
+	if len(createAddresses) > 0 {
+		addresses, err = parseAddresses(createAddresses)
+		if err != nil {
+			return fmt.Errorf("invalid address format: %w", err)
+		}
+	}
+
 	ctx := context.Background()
 
 	// Get People API service
@@ -401,6 +482,7 @@ func runCreate(cmd *cobra.Command, args []string) error {
 		LastName:  createLastName,
 		Phones:    phones,
 		Emails:    emails,
+		Addresses: addresses,
 		Company:   createCompany,
 		Position:  createPosition,
 		Notes:     createNotes,
@@ -598,6 +680,31 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 	if len(updateRemEmails) > 0 {
 		// Remove emails by value
 		input.RemoveEmails = updateRemEmails
+		hasUpdates = true
+	}
+
+	// Address update options
+	if len(updateAddresses) > 0 {
+		// Replaces all addresses
+		addresses, err := parseAddresses(updateAddresses)
+		if err != nil {
+			return fmt.Errorf("invalid --addresses format: %w", err)
+		}
+		input.Addresses = addresses
+		hasUpdates = true
+	}
+	if len(updateAddAddrs) > 0 {
+		// Add addresses without removing existing
+		addresses, err := parseAddresses(updateAddAddrs)
+		if err != nil {
+			return fmt.Errorf("invalid --add-address format: %w", err)
+		}
+		input.AddAddresses = addresses
+		hasUpdates = true
+	}
+	if len(updateRemAddrs) > 0 {
+		// Remove addresses by street content match
+		input.RemoveAddresses = updateRemAddrs
 		hasUpdates = true
 	}
 
@@ -815,6 +922,19 @@ func displayFullContactDetails(details *contacts.ContactDetails) {
 		}
 	}
 
+	// Addresses
+	if len(details.Addresses) > 0 {
+		fmt.Println()
+		if len(details.Addresses) == 1 {
+			fmt.Printf("  %s: %s (%s)\n", cyan("Address"), details.Addresses[0].Value, yellow(details.Addresses[0].Type))
+		} else {
+			fmt.Printf("  %s:\n", cyan("Addresses"))
+			for _, addr := range details.Addresses {
+				fmt.Printf("    • %s (%s)\n", addr.Value, yellow(addr.Type))
+			}
+		}
+	}
+
 	// Organization
 	if details.Company != "" || details.Position != "" {
 		fmt.Println()
@@ -978,6 +1098,7 @@ func Init() {
 	createCmd.Flags().StringVarP(&createLastName, "lastname", "l", "", "Last name (required)")
 	createCmd.Flags().StringArrayVarP(&createPhones, "phone", "p", nil, "Phone number (can be repeated, format: 'type:number' or 'number')")
 	createCmd.Flags().StringArrayVarP(&createEmails, "email", "e", nil, "Email address (can be repeated, format: 'type:email' or 'email')")
+	createCmd.Flags().StringArrayVarP(&createAddresses, "address", "a", nil, "Postal address (can be repeated, format: 'type:address' or 'address')")
 	createCmd.Flags().StringVarP(&createCompany, "company", "c", "", "Company name")
 	createCmd.Flags().StringVarP(&createPosition, "position", "r", "", "Role/position at company")
 	createCmd.Flags().StringVarP(&createNotes, "notes", "n", "", "Notes about the contact")
@@ -997,6 +1118,9 @@ func Init() {
 	updateCmd.Flags().StringArrayVar(&updateEmails, "emails", nil, "Replace ALL emails (can be repeated, format: 'type:email')")
 	updateCmd.Flags().StringArrayVar(&updateAddEmails, "add-email", nil, "Add email without removing existing (can be repeated)")
 	updateCmd.Flags().StringArrayVar(&updateRemEmails, "remove-email", nil, "Remove email by value (can be repeated)")
+	updateCmd.Flags().StringArrayVar(&updateAddresses, "addresses", nil, "Replace ALL addresses (can be repeated, format: 'type:address')")
+	updateCmd.Flags().StringArrayVar(&updateAddAddrs, "add-address", nil, "Add address without removing existing (can be repeated)")
+	updateCmd.Flags().StringArrayVar(&updateRemAddrs, "remove-address", nil, "Remove address by street content match (can be repeated)")
 	updateCmd.Flags().StringVarP(&updateCompany, "company", "c", "", "Company name")
 	updateCmd.Flags().StringVarP(&updatePosition, "position", "r", "", "Role/position at company")
 	updateCmd.Flags().StringVarP(&updateNotes, "notes", "n", "", "Notes about the contact")
