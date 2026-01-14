@@ -45,9 +45,10 @@ google-contacts/
 
 ```
 google-contacts
-├── create               # Create new contact (implemented)
-├── search               # Search contacts (implemented)
-├── show                 # Show contact details (implemented)
+├── create               # Create new contact
+├── search               # Search contacts
+├── show                 # Show contact details
+├── delete               # Delete a contact
 └── version              # Print version
 ```
 
@@ -279,6 +280,7 @@ The `internal/contacts/service.go` provides:
 - `(*Service).SearchContacts(ctx, query)` - Searches contacts by name, phone, email, company
 - `(*Service).GetContact(ctx, resourceName)` - Retrieves a single contact by ID (basic info)
 - `(*Service).GetContactDetails(ctx, resourceName)` - Retrieves full contact details with all phones, emails, and metadata
+- `(*Service).DeleteContact(ctx, resourceName)` - Deletes a contact by ID
 
 The `Service` struct embeds `*people.Service` for full People API access.
 
@@ -403,6 +405,20 @@ type EmailEntry struct {
     Type  string  // e.g., "work", "home"
 }
 ```
+
+**Deleting contacts:**
+```go
+// DeleteContact deletes by resource name or ID
+err := srv.DeleteContact(ctx, "c123456789")
+// or
+err := srv.DeleteContact(ctx, "people/c123456789")
+```
+
+**Delete API behavior:**
+- Returns empty response on success
+- Returns error if contact not found
+- Deletion is permanent (no undo)
+- Best practice: fetch contact details first to display confirmation
 
 **People API metadata:**
 - Metadata contains source information including creation/update times

@@ -35,6 +35,11 @@ var (
 	createNotes     string
 )
 
+// Delete command flags
+var (
+	deleteForce bool
+)
+
 // Command definitions
 var (
 	versionCmd = &cobra.Command{
@@ -123,6 +128,29 @@ Displays:
   google-contacts show c123456789`,
 		Args: cobra.ExactArgs(1),
 		RunE: runShow,
+	}
+
+	deleteCmd = &cobra.Command{
+		Use:   "delete <contact-id>",
+		Short: "Delete a contact",
+		Long: `Delete a contact from Google Contacts.
+
+The contact ID can be:
+  - Full resource name: people/c123456789
+  - Just the ID: c123456789
+
+Safety:
+  - By default, displays contact summary and prompts for confirmation
+  - Use --force to skip confirmation
+
+Note: Deletion is permanent and cannot be undone.`,
+		Example: `  # Delete with confirmation prompt
+  google-contacts delete c123456789
+
+  # Delete without confirmation (use with caution)
+  google-contacts delete c123456789 --force`,
+		Args: cobra.ExactArgs(1),
+		RunE: runDelete,
 	}
 )
 
@@ -225,6 +253,73 @@ func runShow(cmd *cobra.Command, args []string) error {
 	// Display full contact details
 	displayFullContactDetails(details)
 	return nil
+}
+
+func runDelete(cmd *cobra.Command, args []string) error {
+	contactID := args[0]
+	ctx := context.Background()
+
+	// Get People API service
+	srv, err := contacts.GetPeopleService(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to initialize service: %w", err)
+	}
+
+	// Get contact details first (for display and confirmation)
+	details, err := srv.GetContactDetails(ctx, contactID)
+	if err != nil {
+		return err
+	}
+
+	// Display contact summary
+	displayDeleteSummary(details)
+
+	// If not forced, ask for confirmation
+	if !deleteForce {
+		fmt.Print("\nAre you sure you want to delete this contact? (y/N): ")
+		var response string
+		fmt.Scanln(&response)
+
+		response = strings.ToLower(strings.TrimSpace(response))
+		if response != "y" && response != "yes" {
+			fmt.Println("Deletion cancelled.")
+			return nil
+		}
+	}
+
+	// Delete the contact
+	err = srv.DeleteContact(ctx, contactID)
+	if err != nil {
+		return err
+	}
+
+	// Display success message
+	green := color.New(color.FgGreen).SprintFunc()
+	fmt.Println()
+	fmt.Printf("%s Contact '%s' has been deleted.\n", green("✓"), details.DisplayName)
+
+	return nil
+}
+
+// displayDeleteSummary shows contact summary before deletion.
+func displayDeleteSummary(details *contacts.ContactDetails) {
+	cyan := color.New(color.FgCyan).SprintFunc()
+	yellow := color.New(color.FgYellow).SprintFunc()
+
+	fmt.Println(yellow("Contact to delete:"))
+	fmt.Println()
+	fmt.Printf("  %s: %s\n", cyan("Name"), details.DisplayName)
+	fmt.Printf("  %s: %s\n", cyan("ID"), extractID(details.ResourceName))
+
+	if len(details.Phones) > 0 {
+		fmt.Printf("  %s: %s\n", cyan("Phone"), details.Phones[0].Value)
+	}
+	if len(details.Emails) > 0 {
+		fmt.Printf("  %s: %s\n", cyan("Email"), details.Emails[0].Value)
+	}
+	if details.Company != "" {
+		fmt.Printf("  %s: %s\n", cyan("Company"), details.Company)
+	}
 }
 
 // displayContactDetails shows full information for a single contact (from search result).
@@ -414,9 +509,13 @@ func Init() {
 	createCmd.Flags().StringVarP(&createPosition, "position", "r", "", "Role/position at company")
 	createCmd.Flags().StringVarP(&createNotes, "notes", "n", "", "Notes about the contact")
 
+	// Setup delete command flags
+	deleteCmd.Flags().BoolVarP(&deleteForce, "force", "f", false, "Skip confirmation prompt")
+
 	// Register commands
 	RootCmd.AddCommand(versionCmd)
 	RootCmd.AddCommand(createCmd)
 	RootCmd.AddCommand(searchCmd)
 	RootCmd.AddCommand(showCmd)
+	RootCmd.AddCommand(deleteCmd)
 }
