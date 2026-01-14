@@ -702,3 +702,58 @@ All criteria were already met in existing SKILL.md:
 - The document serves both as Claude's guide and as human-readable documentation
 
 ---
+
+## 2026-01-14 - US-00014 - google-contacts: Delete contact command
+
+**Status:** Completed successfully
+
+### What was implemented
+Implemented the 'delete' command to remove contacts from Google Contacts with safety features.
+
+**Features:**
+- Delete by contact ID (full resource name or just the ID)
+- Displays contact summary before deletion
+- Confirmation prompt by default (y/N)
+- --force flag to skip confirmation for scripting
+- Clear success message with contact name
+
+### Files changed
+- **Modified:**
+  - `internal/contacts/service.go` - Added DeleteContact method
+  - `internal/cli/cli.go` - Added deleteCmd, deleteForce flag, runDelete handler, displayDeleteSummary function
+  - `CLAUDE.md` - Updated command structure, service methods, and added delete API pattern
+  - `README.md` - Added delete command documentation with example output
+
+### Learnings
+
+**People API DeleteContact pattern:**
+- Use `srv.People.DeleteContact(resourceName).Context(ctx).Do()`
+- Returns `(*Empty, error)` - need to capture both values even though Empty is unused
+- No response body on success (returns empty)
+- Returns error if contact not found
+
+**User confirmation in CLI:**
+- Use `fmt.Scanln(&response)` for simple yes/no confirmation
+- Default to "No" (y/N pattern) for destructive operations
+- Normalize response with `strings.ToLower(strings.TrimSpace(response))`
+- Accept both "y" and "yes" for flexibility
+
+**--force flag pattern:**
+- Common pattern for destructive CLI commands
+- Use `BoolVarP(&deleteForce, "force", "f", false, "...")` for both long and short flags
+- Best practice: always show summary before even with --force
+- --force only skips confirmation, not the display
+
+**Safety features for delete commands:**
+- Fetch contact details BEFORE deletion (for confirmation display)
+- Show minimal but identifying information (name, ID, phone, email, company)
+- Use warning colors (yellow for "Contact to delete:")
+- Explicit success message with contact name for audit trail
+
+**Makefile cache behavior:**
+- `make build` uses Go's build cache - won't rebuild unchanged code
+- `make clean && make build` forces complete rebuild
+- After code changes, ensure rebuild to test new binary
+- The cache is usually correct but can cause confusion during development
+
+---

@@ -550,3 +550,448 @@
   - SKILL.md handles single result auto-show
   - SKILL.md shows field extraction examples
   passes: true
+
+# =============================================================================
+# PHASE 6: ENHANCED FEATURES & SKILL IMPROVEMENTS
+# =============================================================================
+
+- id: US-00014
+  title: "google-contacts: Delete contact command"
+  priority: 14
+  description: |
+    Implement the 'delete' command to remove contacts.
+
+    Command: google-contacts delete <contact-id>
+
+    The contact ID is the Google Contact resource name (e.g., "people/c123456789")
+    or just the ID part ("c123456789").
+
+    Safety features:
+    - Display contact summary before deletion
+    - Require --force flag for immediate deletion
+    - Without --force, prompt for confirmation (Y/n)
+
+    Flags:
+    - --force, -f: Skip confirmation prompt
+
+    Output:
+    - Success: Display deleted contact summary
+    - Error: Clear error message if contact not found
+
+    Implementation:
+    - Add DeleteContact method to internal/contacts/service.go
+    - Add delete command to internal/cli/cli.go
+    - Use People API DeleteContact method
+
+    Acceptance criteria:
+    - Contact deleted from Google Contacts
+    - Confirmation required unless --force used
+    - Clear error if contact not found
+    - Contact no longer visible in Google Contacts web UI after deletion
+  tests:
+  - google-contacts delete --help shows usage
+  - delete without ID shows error
+  - delete with invalid ID shows appropriate error
+  - delete with valid ID prompts for confirmation
+  - delete with --force skips confirmation
+  - deleted contact no longer appears in search results
+  - deleted contact no longer visible in Google Contacts web UI
+  passes: true
+
+- id: US-00015
+  title: "google-contacts: Update contact command"
+  priority: 15
+  description: |
+    Implement the 'update' command to modify existing contacts.
+
+    Command: google-contacts update <contact-id> [flags]
+
+    The contact ID is the Google Contact resource name (e.g., "people/c123456789")
+    or just the ID part ("c123456789").
+
+    Flags (all optional, only specified fields are updated):
+    - --firstname, -f: Update first name
+    - --lastname, -l: Update last name
+    - --phone, -p: Update primary phone (replaces first phone)
+    - --email, -e: Update primary email (replaces first email)
+    - --company, -c: Update company name
+    - --position, -r: Update role/position
+    - --notes, -n: Update notes
+
+    Behavior:
+    - Fetch current contact data first
+    - Merge specified changes with existing data
+    - Only modify fields that are explicitly provided
+    - Display updated contact summary
+
+    Implementation:
+    - Add UpdateContact method to internal/contacts/service.go
+    - Add update command to internal/cli/cli.go
+    - Use People API updateContact method with updatePersonFields
+
+    Acceptance criteria:
+    - Contact updated in Google Contacts
+    - Only specified fields are modified
+    - Unspecified fields remain unchanged
+    - Updated contact visible with new data in Google Contacts web UI
+  tests:
+  - google-contacts update --help shows all flags
+  - update without ID shows error
+  - update with only --firstname updates only first name
+  - update with multiple flags updates multiple fields
+  - update preserves unspecified fields
+  - updated contact visible in Google Contacts web UI with changes
+  passes: false
+
+- id: US-00016
+  title: "google-contacts: Multiple phones support in create/update"
+  priority: 16
+  description: |
+    Add support for multiple phone numbers with types (labels) in create and update commands.
+
+    Phone types supported:
+    - mobile: Mobile phone (default if no type specified)
+    - work: Work phone
+    - home: Home phone
+    - main: Main phone
+    - other: Other phone
+
+    Syntax for --phone flag:
+    - Single phone: --phone "+33612345678" (type defaults to mobile)
+    - Phone with type: --phone "mobile:+33612345678"
+    - Multiple phones: --phone "mobile:+33612345678" --phone "work:+33123456789"
+
+    For create command:
+    - Accept multiple --phone flags
+    - Parse type:number format
+    - Default to "mobile" if no type prefix
+
+    For update command:
+    - --phone replaces all existing phones
+    - --add-phone adds a new phone without removing existing ones
+    - --remove-phone removes a specific phone by value
+
+    Additional flags for update:
+    - --add-phone: Add a phone number (can be repeated)
+    - --remove-phone: Remove a phone number by value (can be repeated)
+
+    Implementation:
+    - Modify ContactInput struct to support []PhoneEntry
+    - Update create command to parse multiple phones
+    - Add phone management flags to update command
+    - Update service methods to handle multiple phones
+
+    Acceptance criteria:
+    - Create command accepts multiple phones with types
+    - Update command can add/remove individual phones
+    - Phone types are correctly saved in Google Contacts
+    - All phones visible with correct labels in show command
+  tests:
+  - create with single phone works (defaults to mobile)
+  - create with typed phone works (e.g., work:+33123456789)
+  - create with multiple phones works
+  - show displays all phones with correct types
+  - update --phone replaces all phones
+  - update --add-phone adds without removing
+  - update --remove-phone removes specific phone
+  - Google Contacts web UI shows all phones with correct labels
+  passes: false
+
+- id: US-00017
+  title: "google-contacts: Multiple emails support in create/update"
+  priority: 17
+  description: |
+    Add support for multiple email addresses with types (labels) in create and update commands.
+
+    Email types supported:
+    - work: Work email (default if no type specified)
+    - home: Personal email
+    - other: Other email
+
+    Syntax for --email flag:
+    - Single email: --email "john@acme.com" (type defaults to work)
+    - Email with type: --email "work:john@acme.com"
+    - Multiple emails: --email "work:john@acme.com" --email "home:john@gmail.com"
+
+    For create command:
+    - Accept multiple --email flags
+    - Parse type:value format
+    - Default to "work" if no type prefix
+
+    For update command:
+    - --email replaces all existing emails
+    - --add-email adds a new email without removing existing ones
+    - --remove-email removes a specific email by value
+
+    Additional flags for update:
+    - --add-email: Add an email address (can be repeated)
+    - --remove-email: Remove an email address by value (can be repeated)
+
+    Implementation:
+    - Modify ContactInput struct to support []EmailEntry
+    - Update create command to parse multiple emails
+    - Add email management flags to update command
+    - Update service methods to handle multiple emails
+
+    Acceptance criteria:
+    - Create command accepts multiple emails with types
+    - Update command can add/remove individual emails
+    - Email types are correctly saved in Google Contacts
+    - All emails visible with correct labels in show command
+  tests:
+  - create with single email works (defaults to work)
+  - create with typed email works (e.g., home:john@gmail.com)
+  - create with multiple emails works
+  - show displays all emails with correct types
+  - update --email replaces all emails
+  - update --add-email adds without removing
+  - update --remove-email removes specific email
+  - Google Contacts web UI shows all emails with correct labels
+  passes: false
+
+# =============================================================================
+# PHASE 7: SKILL IMPROVEMENTS - NAME RECOGNITION & VALIDATION
+# =============================================================================
+
+- id: US-00018
+  title: "google-contacts skill: Name recognition improvements"
+  priority: 18
+  description: |
+    Improve the skill's ability to correctly identify first name vs last name
+    when parsing contact information from text or images.
+
+    Problem:
+    - Names can be in different formats: "John DOE", "DOE John", "John Doe"
+    - Different cultures have different name order conventions
+    - All-caps often indicates the family name
+
+    Recognition rules to add in SKILL.md:
+    1. Full uppercase word is likely the family name (e.g., "Jean DUPONT" -> lastname=DUPONT)
+    2. In French context, family name often comes last
+    3. In Asian contexts (e.g., Japanese business cards), family name often comes first
+    4. When uncertain, express probability and ALWAYS ask for confirmation (US-00019)
+
+    Heuristics with confidence levels:
+    - If one word is ALL CAPS and others are Title Case: ALL CAPS = family name (HIGH confidence)
+      Example: "Sebastien LAURENT" -> firstname=Sebastien, lastname=Laurent (95% certain)
+    - If both words same case in French context: firstname lastname order (MEDIUM confidence)
+      Example: "Jean Dupont" -> firstname=Jean, lastname=Dupont (80% certain)
+    - If order is ambiguous or Asian name detected: (LOW confidence)
+      Example: "Takeshi Yamamoto" -> could be either order (50% certain)
+    - For more than 2 words, middle names go with first name unless specified
+
+    Probabilistic reasoning:
+    - HIGH confidence (>90%): Present the interpretation but still require confirmation
+    - MEDIUM confidence (60-90%): Present interpretation with explanation of reasoning
+    - LOW confidence (<60%): Present multiple possibilities and ask user to choose
+
+    Example validation prompts by confidence:
+
+    HIGH confidence:
+    ```
+    J'ai identifié : Prénom=Sebastien, Nom=LAURENT
+    (Le nom en majuscules indique généralement le nom de famille)
+    Est-ce correct ?
+    ```
+
+    MEDIUM confidence:
+    ```
+    J'ai identifié : Prénom=Jean, Nom=Dupont
+    (Ordre français standard prénom-nom)
+    Est-ce correct ?
+    ```
+
+    LOW confidence:
+    ```
+    Je ne suis pas certain de l'ordre du nom "Takeshi Yamamoto".
+    Quel est le prénom et quel est le nom de famille ?
+    - Option 1: Prénom=Takeshi, Nom=Yamamoto
+    - Option 2: Prénom=Yamamoto, Nom=Takeshi
+    ```
+
+    SKILL.md updates:
+    - Add "Name Recognition" section with these rules
+    - Add confidence level explanations
+    - Add examples of probabilistic reasoning
+    - Emphasize ALWAYS confirming before creating contact (link to US-00019)
+
+    Acceptance criteria:
+    - SKILL.md documents name recognition heuristics
+    - ALL CAPS rule is clearly explained with examples
+    - Confidence levels documented (HIGH/MEDIUM/LOW)
+    - Probabilistic reasoning examples provided
+    - All cases require confirmation (mandatory per US-00019)
+  tests:
+  - SKILL.md contains "Name Recognition" section
+  - SKILL.md explains ALL CAPS = family name heuristic
+  - SKILL.md shows examples like "Sebastien LAURENT" -> lastname=Laurent
+  - SKILL.md documents confidence levels (HIGH/MEDIUM/LOW)
+  - SKILL.md shows probabilistic reasoning examples
+  - SKILL.md emphasizes confirmation is ALWAYS required
+  passes: false
+
+- id: US-00019
+  title: "google-contacts skill: Mandatory validation before contact creation"
+  priority: 19
+  description: |
+    Update the skill to ALWAYS validate contact information with the user
+    before executing the create command. This prevents errors from incorrect
+    parsing or OCR mistakes.
+
+    Current problem:
+    - Skill might create contacts with wrong name order
+    - Screenshot OCR might misread characters
+    - User might not notice errors until contact is already created
+
+    Solution - Mandatory validation workflow:
+    1. Parse/extract contact information
+    2. ALWAYS display extracted data in a clear format
+    3. ALWAYS ask user to confirm or correct
+    4. Only execute create command after explicit confirmation
+
+    Validation prompt format:
+    ```
+    📋 Contact à créer :
+    ───────────────────
+    Prénom    : Jean
+    Nom       : Dupont
+    Téléphone : +33 6 12 34 56 78 (mobile)
+    Email     : jean@acme.com (work)
+    Entreprise: Acme Corp
+    Poste     : CTO
+
+    Est-ce correct ? (oui/non/modifier)
+    ```
+
+    User responses:
+    - "oui" / "yes" / "ok" / "c'est bon" -> proceed with creation
+    - "non" / "no" -> cancel
+    - "modifier" / "change" + corrections -> update and re-validate
+
+    SKILL.md updates:
+    - Make validation step MANDATORY (not optional)
+    - Add validation prompt format
+    - Document how to handle corrections
+    - Remove any workflow that skips validation
+
+    Acceptance criteria:
+    - SKILL.md makes validation mandatory before any create
+    - Validation prompt format is clearly defined
+    - User can confirm, cancel, or modify
+    - No contact created without explicit user confirmation
+  tests:
+  - SKILL.md marks validation as MANDATORY
+  - SKILL.md contains validation prompt format
+  - SKILL.md shows confirm/cancel/modify options
+  - All create workflows include validation step
+  - Screenshot workflow includes validation step
+  - Natural language workflow includes validation step
+  passes: false
+
+- id: US-00020
+  title: "google-contacts skill: Document delete and update workflows"
+  priority: 20
+  description: |
+    Update SKILL.md to document the new delete and update commands
+    once they are implemented (depends on US-00014, US-00015).
+
+    Delete workflow:
+    - Natural language: "Delete the contact for Jean Dupont"
+    - First search for the contact
+    - Show contact details and ask for confirmation
+    - Execute delete command
+    - Confirm deletion
+
+    Update workflow:
+    - Natural language: "Update Jean's phone number to 0698765432"
+    - First search for the contact
+    - Show current contact details
+    - Show proposed changes
+    - Ask for confirmation
+    - Execute update command
+    - Show updated contact
+
+    SKILL.md sections to add:
+    - "5. Supprimer un contact" / "Delete a contact"
+    - "6. Modifier un contact" / "Update a contact"
+    - Delete workflow with confirmation
+    - Update workflow with validation
+    - Natural language examples for both
+
+    Safety considerations:
+    - ALWAYS confirm before delete
+    - ALWAYS show before/after for update
+    - Provide undo guidance (re-create from memory for delete)
+
+    Acceptance criteria:
+    - SKILL.md documents delete command
+    - SKILL.md documents update command
+    - Both workflows include confirmation steps
+    - Natural language examples provided
+  tests:
+  - SKILL.md contains delete section
+  - SKILL.md contains update section
+  - Delete workflow requires confirmation
+  - Update workflow shows before/after
+  - Natural language examples for delete
+  - Natural language examples for update
+  passes: false
+
+- id: US-00021
+  title: "google-contacts skill: Document multiple phones/emails support"
+  priority: 21
+  description: |
+    Update SKILL.md to document support for multiple phones and emails
+    once implemented (depends on US-00016, US-00017).
+
+    Phone types documentation:
+    - mobile: Téléphone portable / Mobile phone
+    - work: Téléphone professionnel / Work phone
+    - home: Téléphone domicile / Home phone
+    - main: Téléphone principal / Main phone
+    - other: Autre / Other
+
+    Email types documentation:
+    - work: Email professionnel / Work email
+    - home: Email personnel / Home email
+    - other: Autre / Other
+
+    Update SKILL.md sections:
+    - Create command: show multiple phone/email syntax
+    - Update command: show add/remove phone/email syntax
+    - Show command: demonstrate multi-phone/email display
+    - Validation prompt: show multiple phones/emails format
+
+    Natural language examples:
+    - "Crée un contact avec deux numéros: mobile et travail"
+    - "Ajoute son email personnel john@gmail.com"
+    - "Change son numéro de travail"
+    - "Remove his home phone"
+
+    Acceptance criteria:
+    - SKILL.md documents phone types
+    - SKILL.md documents email types
+    - Create examples show multiple phones/emails
+    - Update examples show add/remove
+    - Validation prompt shows all phones/emails
+  tests:
+  - SKILL.md lists all phone types
+  - SKILL.md lists all email types
+  - Create command examples with multiple phones
+  - Create command examples with multiple emails
+  - Update command examples with --add-phone
+  - Update command examples with --add-email
+  - Validation prompt format includes multiple entries
+  passes: false
+
+# =============================================================================
+# DEPLOYMENT NOTE
+# =============================================================================
+# After implementing CLI changes, deploy the binary to the skill directory:
+#   make install INSTALL_DIR=~/.claude/skills/google-contacts/scripts/
+#
+# The skill references the binary at:
+#   ~/.claude/skills/google-contacts/scripts/google-contacts
+#
+# This is NOT a user story but a deployment task to be done after each
+# CLI modification (US-00014 through US-00017).
