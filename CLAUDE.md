@@ -152,6 +152,45 @@ result, err := srv.People.Get("people/c123456789").PersonFields("names,phoneNumb
 - **Token**: `~/.credentials/google_token.json`
 - **Binary**: `bin/google-contacts-<os>-<arch>` (after build)
 - **Installed**: `/usr/local/bin/google-contacts` (after install)
+- **Skill**: `~/.claude/skills/google-contacts/` (for Claude integration)
+
+## Claude Skill Integration
+
+The project includes a Claude skill at `~/.claude/skills/google-contacts/` that enables natural language interaction with Google Contacts.
+
+### Skill Structure
+
+```
+~/.claude/skills/google-contacts/
+├── SKILL.md           # Skill definition and usage documentation
+└── scripts/
+    └── google-contacts  # Symlink to installed binary
+```
+
+### Skill Features
+
+- **Natural language contact creation**: "Create a contact for John Doe, phone +33612345678"
+- **Screenshot-based contact creation**: "Create contact from this screenshot: ~/Downloads/card.png"
+- **Contact search**: "Find contacts at Acme Corp"
+- **Contact details**: "Show me John's contact details"
+
+### Updating the Skill
+
+When adding new CLI commands or modifying existing ones:
+1. Update the CLI code in `internal/cli/cli.go`
+2. Update the skill documentation in `~/.claude/skills/google-contacts/SKILL.md`
+3. Ensure the symlink points to the current binary
+
+### Symlink Management
+
+The skill uses a symlink to the built binary:
+```bash
+# Check current symlink
+ls -la ~/.claude/skills/google-contacts/scripts/google-contacts
+
+# Update symlink after build (if needed)
+ln -sf $(pwd)/bin/google-contacts-linux-amd64 ~/.claude/skills/google-contacts/scripts/google-contacts
+```
 
 ## Testing
 
