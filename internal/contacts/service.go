@@ -51,8 +51,8 @@ func (s *Service) TestConnection(ctx context.Context) error {
 type ContactInput struct {
 	FirstName string
 	LastName  string
-	Phones    []PhoneEntry // Multiple phones with types
-	Email     string
+	Phones    []PhoneEntry  // Multiple phones with types
+	Emails    []EmailEntry  // Multiple emails with types
 	Company   string
 	Position  string
 	Notes     string
@@ -134,14 +134,16 @@ func (s *Service) CreateContact(ctx context.Context, input ContactInput) (*Creat
 		})
 	}
 
-	// Add optional fields
-	if input.Email != "" {
-		person.EmailAddresses = []*people.EmailAddress{
-			{
-				Value: input.Email,
-				Type:  "work",
-			},
+	// Add email addresses (optional, with types)
+	for _, email := range input.Emails {
+		emailType := email.Type
+		if emailType == "" {
+			emailType = "work"
 		}
+		person.EmailAddresses = append(person.EmailAddresses, &people.EmailAddress{
+			Value: email.Value,
+			Type:  emailType,
+		})
 	}
 
 	if input.Company != "" || input.Position != "" {
@@ -322,11 +324,14 @@ func (s *Service) DeleteContact(ctx context.Context, resourceName string) error 
 type UpdateInput struct {
 	FirstName    *string
 	LastName     *string
-	Phone        *string      // Replaces all phones (backward compat)
+	Phone        *string      // Replaces first phone (backward compat)
 	Phones       []PhoneEntry // Replaces all phones (new multi-phone)
 	AddPhones    []PhoneEntry // Add phones without removing existing
 	RemovePhones []string     // Remove phones by value
-	Email        *string
+	Email        *string      // Replaces first email (backward compat)
+	Emails       []EmailEntry // Replaces all emails (new multi-email)
+	AddEmails    []EmailEntry // Add emails without removing existing
+	RemoveEmails []string     // Remove emails by value
 	Company      *string
 	Position     *string
 	Notes        *string
@@ -433,12 +438,69 @@ func (s *Service) UpdateContact(ctx context.Context, resourceName string, input 
 		updateFields = append(updateFields, "phoneNumbers")
 	}
 
-	// Update email if provided (replaces first email)
+	// Handle email updates (multiple options available)
+	emailUpdated := false
+
+	// Option 1: --email flag replaces first email (backward compatibility)
 	if input.Email != nil {
 		if len(current.EmailAddresses) == 0 {
 			current.EmailAddresses = []*people.EmailAddress{{Type: "work"}}
 		}
 		current.EmailAddresses[0].Value = *input.Email
+		emailUpdated = true
+	}
+
+	// Option 2: Emails slice replaces all emails
+	if len(input.Emails) > 0 {
+		current.EmailAddresses = nil
+		for _, email := range input.Emails {
+			emailType := email.Type
+			if emailType == "" {
+				emailType = "work"
+			}
+			current.EmailAddresses = append(current.EmailAddresses, &people.EmailAddress{
+				Value: email.Value,
+				Type:  emailType,
+			})
+		}
+		emailUpdated = true
+	}
+
+	// Option 3: AddEmails adds without removing existing
+	if len(input.AddEmails) > 0 {
+		for _, email := range input.AddEmails {
+			emailType := email.Type
+			if emailType == "" {
+				emailType = "work"
+			}
+			current.EmailAddresses = append(current.EmailAddresses, &people.EmailAddress{
+				Value: email.Value,
+				Type:  emailType,
+			})
+		}
+		emailUpdated = true
+	}
+
+	// Option 4: RemoveEmails removes specific emails by value
+	if len(input.RemoveEmails) > 0 {
+		var remaining []*people.EmailAddress
+		for _, email := range current.EmailAddresses {
+			shouldRemove := false
+			for _, removeValue := range input.RemoveEmails {
+				if email.Value == removeValue {
+					shouldRemove = true
+					break
+				}
+			}
+			if !shouldRemove {
+				remaining = append(remaining, email)
+			}
+		}
+		current.EmailAddresses = remaining
+		emailUpdated = true
+	}
+
+	if emailUpdated {
 		updateFields = append(updateFields, "emailAddresses")
 	}
 

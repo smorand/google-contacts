@@ -29,7 +29,7 @@ var (
 	createFirstName string
 	createLastName  string
 	createPhones    []string // Multiple phones in format "type:number" or just "number"
-	createEmail     string
+	createEmails    []string // Multiple emails in format "type:email" or just "email"
 	createCompany   string
 	createPosition  string
 	createNotes     string
@@ -42,16 +42,19 @@ var (
 
 // Update command flags
 var (
-	updateFirstName string
-	updateLastName  string
-	updatePhone     string   // Backward compatible: replaces first phone
-	updatePhones    []string // Replaces all phones
-	updateAddPhones []string // Add phones without removing existing
-	updateRemPhones []string // Remove phones by value
-	updateEmail     string
-	updateCompany   string
-	updatePosition  string
-	updateNotes     string
+	updateFirstName  string
+	updateLastName   string
+	updatePhone      string   // Backward compatible: replaces first phone
+	updatePhones     []string // Replaces all phones
+	updateAddPhones  []string // Add phones without removing existing
+	updateRemPhones  []string // Remove phones by value
+	updateEmail      string   // Backward compatible: replaces first email
+	updateEmails     []string // Replaces all emails
+	updateAddEmails  []string // Add emails without removing existing
+	updateRemEmails  []string // Remove emails by value
+	updateCompany    string
+	updatePosition   string
+	updateNotes      string
 )
 
 // Command definitions
@@ -81,11 +84,18 @@ Phone number format:
 
 Phone types: mobile (default), work, home, main, other
 
+Email format:
+  - Simple: john@acme.com (defaults to "work" type)
+  - With type: work:john@acme.com
+  - Multiple: -e "work:john@acme.com" -e "home:john@gmail.com"
+
+Email types: work (default), home, other
+
 Recommended fields:
   --company, -c:   Company name
 
 Optional fields:
-  --email, -e:     Email address
+  --email, -e:     Email address (can be repeated for multiple emails)
   --position, -r:  Role/position at company
   --notes, -n:     Notes about the contact`,
 		Example: `  # Create contact with single phone (defaults to mobile)
@@ -96,6 +106,12 @@ Optional fields:
 
   # Create contact with multiple phones
   google-contacts create -f John -l Doe -p "mobile:+33612345678" -p "work:+33123456789"
+
+  # Create contact with single email (defaults to work)
+  google-contacts create -f John -l Doe -p +33612345678 -e john@acme.com
+
+  # Create contact with multiple emails
+  google-contacts create -f John -l Doe -p +33612345678 -e "work:john@acme.com" -e "home:john@gmail.com"
 
   # Create contact with all fields
   google-contacts create -f John -l Doe -p +33612345678 -c "Acme Inc" -r "CTO" -e john@acme.com -n "Met at conference"`,
@@ -200,10 +216,18 @@ Phone management options:
 Phone format: "type:number" or just "number" (defaults to mobile)
 Phone types: mobile (default), work, home, main, other
 
+Email management options:
+  --email, -e:       Update primary email (replaces first email)
+  --emails:          Replace ALL emails (can be repeated)
+  --add-email:       Add an email without removing existing (can be repeated)
+  --remove-email:    Remove an email by value (can be repeated)
+
+Email format: "type:email" or just "email" (defaults to work)
+Email types: work (default), home, other
+
 Other fields:
   --firstname, -f: Update first name
   --lastname, -l:  Update last name
-  --email, -e:     Update primary email (replaces first email)
   --company, -c:   Update company name
   --position, -r:  Update role/position
   --notes, -n:     Update notes`,
@@ -221,6 +245,18 @@ Other fields:
 
   # Remove a specific phone
   google-contacts update c123456789 --remove-phone "+33612345678"
+
+  # Update primary email (backward compatible)
+  google-contacts update c123456789 -e "newemail@acme.com"
+
+  # Replace all emails with new ones
+  google-contacts update c123456789 --emails "work:john@acme.com" --emails "home:john@gmail.com"
+
+  # Add a personal email without removing existing
+  google-contacts update c123456789 --add-email "home:john@gmail.com"
+
+  # Remove a specific email
+  google-contacts update c123456789 --remove-email "old@acme.com"
 
   # Update company information
   google-contacts update c123456789 --company "New Corp" --position "CEO"`,
@@ -264,6 +300,39 @@ func parsePhones(phoneStrs []string) ([]contacts.PhoneEntry, error) {
 	return phones, nil
 }
 
+// parseEmails parses email strings in format "type:email" or just "email".
+// Valid types: work (default), home, other
+func parseEmails(emailStrs []string) ([]contacts.EmailEntry, error) {
+	validTypes := map[string]bool{
+		"work":  true,
+		"home":  true,
+		"other": true,
+	}
+
+	var emails []contacts.EmailEntry
+	for _, es := range emailStrs {
+		var entry contacts.EmailEntry
+		if idx := strings.Index(es, ":"); idx > 0 {
+			// Format: type:email
+			emailType := strings.ToLower(es[:idx])
+			if !validTypes[emailType] {
+				return nil, fmt.Errorf("invalid email type '%s', valid types: work, home, other", emailType)
+			}
+			entry.Type = emailType
+			entry.Value = es[idx+1:]
+		} else {
+			// Format: just email (defaults to work)
+			entry.Type = "work"
+			entry.Value = es
+		}
+		if entry.Value == "" {
+			return nil, fmt.Errorf("email address cannot be empty")
+		}
+		emails = append(emails, entry)
+	}
+	return emails, nil
+}
+
 func runCreate(cmd *cobra.Command, args []string) error {
 	// Validate required fields
 	if createFirstName == "" {
@@ -282,6 +351,15 @@ func runCreate(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("invalid phone format: %w", err)
 	}
 
+	// Parse email addresses (optional)
+	var emails []contacts.EmailEntry
+	if len(createEmails) > 0 {
+		emails, err = parseEmails(createEmails)
+		if err != nil {
+			return fmt.Errorf("invalid email format: %w", err)
+		}
+	}
+
 	ctx := context.Background()
 
 	// Get People API service
@@ -295,7 +373,7 @@ func runCreate(cmd *cobra.Command, args []string) error {
 		FirstName: createFirstName,
 		LastName:  createLastName,
 		Phones:    phones,
-		Email:     createEmail,
+		Emails:    emails,
 		Company:   createCompany,
 		Position:  createPosition,
 		Notes:     createNotes,
@@ -465,10 +543,36 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 		hasUpdates = true
 	}
 
+	// Email update options (in priority order)
 	if cmd.Flags().Changed("email") {
+		// Backward compatible: replaces first email
 		input.Email = &updateEmail
 		hasUpdates = true
 	}
+	if len(updateEmails) > 0 {
+		// Replaces all emails
+		emails, err := parseEmails(updateEmails)
+		if err != nil {
+			return fmt.Errorf("invalid --emails format: %w", err)
+		}
+		input.Emails = emails
+		hasUpdates = true
+	}
+	if len(updateAddEmails) > 0 {
+		// Add emails without removing existing
+		emails, err := parseEmails(updateAddEmails)
+		if err != nil {
+			return fmt.Errorf("invalid --add-email format: %w", err)
+		}
+		input.AddEmails = emails
+		hasUpdates = true
+	}
+	if len(updateRemEmails) > 0 {
+		// Remove emails by value
+		input.RemoveEmails = updateRemEmails
+		hasUpdates = true
+	}
+
 	if cmd.Flags().Changed("company") {
 		input.Company = &updateCompany
 		hasUpdates = true
@@ -784,7 +888,7 @@ func Init() {
 	createCmd.Flags().StringVarP(&createFirstName, "firstname", "f", "", "First name (required)")
 	createCmd.Flags().StringVarP(&createLastName, "lastname", "l", "", "Last name (required)")
 	createCmd.Flags().StringArrayVarP(&createPhones, "phone", "p", nil, "Phone number (can be repeated, format: 'type:number' or 'number')")
-	createCmd.Flags().StringVarP(&createEmail, "email", "e", "", "Email address")
+	createCmd.Flags().StringArrayVarP(&createEmails, "email", "e", nil, "Email address (can be repeated, format: 'type:email' or 'email')")
 	createCmd.Flags().StringVarP(&createCompany, "company", "c", "", "Company name")
 	createCmd.Flags().StringVarP(&createPosition, "position", "r", "", "Role/position at company")
 	createCmd.Flags().StringVarP(&createNotes, "notes", "n", "", "Notes about the contact")
@@ -799,7 +903,10 @@ func Init() {
 	updateCmd.Flags().StringArrayVar(&updatePhones, "phones", nil, "Replace ALL phones (can be repeated, format: 'type:number')")
 	updateCmd.Flags().StringArrayVar(&updateAddPhones, "add-phone", nil, "Add phone without removing existing (can be repeated)")
 	updateCmd.Flags().StringArrayVar(&updateRemPhones, "remove-phone", nil, "Remove phone by value (can be repeated)")
-	updateCmd.Flags().StringVarP(&updateEmail, "email", "e", "", "Email address")
+	updateCmd.Flags().StringVarP(&updateEmail, "email", "e", "", "Primary email (replaces first email)")
+	updateCmd.Flags().StringArrayVar(&updateEmails, "emails", nil, "Replace ALL emails (can be repeated, format: 'type:email')")
+	updateCmd.Flags().StringArrayVar(&updateAddEmails, "add-email", nil, "Add email without removing existing (can be repeated)")
+	updateCmd.Flags().StringArrayVar(&updateRemEmails, "remove-email", nil, "Remove email by value (can be repeated)")
 	updateCmd.Flags().StringVarP(&updateCompany, "company", "c", "", "Company name")
 	updateCmd.Flags().StringVarP(&updatePosition, "position", "r", "", "Role/position at company")
 	updateCmd.Flags().StringVarP(&updateNotes, "notes", "n", "", "Notes about the contact")
