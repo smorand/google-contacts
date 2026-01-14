@@ -175,6 +175,30 @@ Contact Details
   Updated: 2026-01-14 10:30:00
 ```
 
+## Claude Skill Integration
+
+This project includes a Claude skill for natural language interaction with Google Contacts.
+
+### Installation
+
+After building, install the skill symlink:
+
+```bash
+mkdir -p ~/.claude/skills/google-contacts/scripts
+ln -sf $(pwd)/bin/google-contacts-linux-amd64 ~/.claude/skills/google-contacts/scripts/google-contacts
+```
+
+The skill documentation is maintained in `~/.claude/skills/google-contacts/SKILL.md`.
+
+### Usage with Claude
+
+Once installed, Claude can use natural language to manage contacts:
+
+- **Create contacts**: "Create a contact for John Doe, phone +33612345678, at Acme Corp"
+- **From screenshots**: "Create contact from this screenshot: ~/Downloads/business_card.png"
+- **Search**: "Find contacts at L'Oreal" or "What's John's phone number?"
+- **View details**: "Show me the details of contact c123456789"
+
 ## Project Structure
 
 ```
