@@ -531,6 +531,69 @@ Verified and documented the Claude skill integration for google-contacts. The sk
 
 ---
 
+## 2026-01-14 - US-00012 - google-contacts skill: Create contact from screenshot
+
+**Status:** Completed successfully (already implemented)
+
+### What was implemented
+Verified that the SKILL.md at `~/.claude/skills/google-contacts/` already contains comprehensive documentation for creating contacts from screenshots. The screenshot workflow was fully documented as part of US-00010.
+
+### Acceptance criteria verification
+
+All criteria were already met in existing SKILL.md:
+
+1. **Screenshot workflow section** ✅
+   - Section "2. Créer un contact depuis une capture d'écran" (line 116)
+   - Complete workflow with 5 steps (lines 120-177)
+
+2. **Read tool usage for images** ✅
+   - Étape 2 shows how to use Read tool (lines 131-137)
+   - Explains Claude's multimodal image analysis capability
+
+3. **Confirmation step documented** ✅
+   - Étape 4 marked as "IMPORTANT" (lines 149-164)
+   - Example confirmation dialog provided
+   - Clear statement: "Toujours confirmer les données extraites avant de créer le contact"
+
+4. **~/Downloads/ path handling** ✅
+   - "Chemins d'images courants" section (lines 189-193)
+   - Explicitly lists `~/Downloads/` as common path
+
+### Additional documentation already present
+- Common image sources table (business cards, email signatures, LinkedIn profiles)
+- Workflow 2 in the "Workflows courants" section showing complete screenshot-to-contact flow
+- Trigger phrases including "Add contact from this screenshot"
+
+### Files changed
+- **Modified:**
+  - `stories.yaml` - Updated US-00012 `passes: false` to `passes: true`
+  - `progress.md` - Added this entry
+
+### Learnings
+
+**Comprehensive skill documentation from the start:**
+- US-00010 created a very thorough SKILL.md that anticipated all subsequent stories
+- Screenshot workflow was documented with all required elements upfront
+- This pattern is efficient but requires careful story sequencing awareness
+
+**Confirmation step importance:**
+- The skill documentation correctly marks the confirmation step as "IMPORTANT"
+- This is critical for screenshot-based contact creation where OCR/extraction may have errors
+- User verification prevents creating contacts with incorrect information
+
+**Image source diversity:**
+- The documentation covers multiple image sources (business cards, email signatures, LinkedIn, phone screenshots)
+- Each source has different typical information available
+- This helps Claude extract the right fields based on the image context
+
+**Path handling patterns:**
+- `~/Downloads/` is the most common location for screenshots
+- `/tmp/` for temporary files
+- Absolute paths for user-specified locations
+- These patterns help Claude locate image files from user requests
+
+---
+
 ## 2026-01-14 - US-00011 - google-contacts skill: Create contact from basic information
 
 **Status:** Completed successfully (already implemented)
