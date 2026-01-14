@@ -940,3 +940,70 @@ Added a comprehensive "Reconnaissance des noms" (Name Recognition) section to SK
 - The section references a "Validation obligatoire avant création" section that will be added in US-00019
 
 ---
+
+## 2026-01-14 - US-00019 - google-contacts skill: Mandatory validation before contact creation
+
+**Status:** Completed successfully
+
+### What was implemented
+Added comprehensive mandatory validation workflow documentation to SKILL.md to ensure all contact creation is validated by the user before execution.
+
+### Files changed
+- **Modified:**
+  - `~/.claude/skills/google-contacts/SKILL.md` - Added "Validation obligatoire avant création" section (~200 lines)
+  - `CLAUDE.md` - Added skill features (validation, name recognition)
+  - `internal/cli/cli.go` - gofmt formatting fixes
+  - `internal/contacts/service.go` - gofmt formatting fixes
+  - `stories.yaml` - Updated US-00019 `passes: false` to `passes: true`
+  - `progress.md` - Added this entry
+
+### SKILL.md sections added/updated
+
+**New section "Validation obligatoire avant création":**
+- Principle: ALL contact creation requires user validation (NO EXCEPTIONS)
+- Why validation is mandatory (5 reasons)
+- Standard validation prompt format with field alignment
+- Multi-phone/email format example
+- Accepted user responses table (confirm/cancel/modify)
+- Modification flow with re-validation loop
+- Integrated workflow examples (text + screenshot)
+- Special cases: low confidence names, deduced fields
+- "What NOT to do" checklist (5 anti-patterns)
+
+**Updated workflows to include validation:**
+- "Workflow de parsing naturel" (lines 86-118) - Added step 2 validation prompt
+- "Étape 4" screenshot workflow (lines 161-179) - Renamed to "Validation OBLIGATOIRE"
+- "Workflow 1" text creation (lines 283-311) - Added complete validation flow
+- "Workflow 2" screenshot creation (lines 313-340) - Added complete validation flow
+
+### Learnings
+
+**Skill documentation for safety-critical workflows:**
+- Making validation MANDATORY (vs recommended) requires explicit language: "OBLIGATOIRE", "SANS EXCEPTION"
+- Anti-patterns (what NOT to do) are as important as positive examples
+- Every workflow path must include the validation step - no shortcuts
+- Cross-references between sections help maintain consistency
+
+**Validation prompt design:**
+- Field alignment with consistent spacing improves readability
+- Source attribution ("Extrait de l'image...") provides context
+- Clear options (oui/non/modifier) reduce ambiguity
+- Include phone/email types in the prompt for full transparency
+
+**User response handling:**
+- Accept multiple synonyms for each action (oui/yes/ok/parfait)
+- Modification triggers re-validation loop - don't skip
+- Distinguish between user uncertainty ("je pense que oui") and clear confirmation
+
+**SKILL.md organization:**
+- Large skill documents benefit from clear section headers and sub-headers
+- Reference earlier sections to avoid duplication
+- Use tables for quick reference (response types, confidence levels)
+- Include both positive examples and anti-patterns
+
+**Documentation-only stories:**
+- Some stories only modify skill documentation, not CLI code
+- These still require updating CLAUDE.md to keep features list current
+- gofmt may still run during `make check` and format code
+
+---
