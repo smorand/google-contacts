@@ -530,3 +530,52 @@ Verified and documented the Claude skill integration for google-contacts. The sk
 - Example triggers in both languages help Claude recognize requests
 
 ---
+
+## 2026-01-14 - US-00011 - google-contacts skill: Create contact from basic information
+
+**Status:** Completed successfully (already implemented)
+
+### What was implemented
+Verified that the SKILL.md at `~/.claude/skills/google-contacts/` already contains comprehensive documentation for creating contacts from basic information. The skill was fully implemented as part of US-00010.
+
+### Acceptance criteria verification
+
+All criteria were already met in existing SKILL.md:
+
+1. **Create contact workflow** ✅
+   - Section "1. Créer un contact" (line 52)
+   - "Workflow 1: Créer un contact depuis une demande texte" (line 283)
+
+2. **Natural language parsing examples** ✅
+   - "Workflow de parsing naturel" section (line 86)
+   - Parsing examples table with input/extraction columns (lines 108-114)
+
+3. **Required fields documented** ✅
+   - "Champs requis" section documents: firstname, lastname, phone (lines 68-71)
+
+4. **Optional fields documented** ✅
+   - "Champs optionnels" section documents: email, company, position, notes (lines 73-77)
+
+### Files changed
+- **Modified:**
+  - `stories.yaml` - Updated US-00011 `passes: false` to `passes: true`
+  - `progress.md` - Added this entry
+
+### Learnings
+
+**Story verification vs implementation:**
+- Stories may already be implemented as part of earlier work
+- US-00011's requirements were naturally fulfilled when creating the comprehensive SKILL.md in US-00010
+- The verification step confirms completeness without requiring new code
+
+**Skill documentation scope:**
+- A well-structured SKILL.md should cover both basic and advanced workflows
+- Including natural language parsing examples in the initial skill creation prevents fragmented documentation
+- Bilingual examples (French/English) were included from the start to support multilingual interactions
+
+**Incremental story completion:**
+- When creating skills, it's efficient to document all use cases upfront
+- Subsequent stories (US-00011, US-00012, US-00013) serve as verification checkpoints
+- This pattern ensures nothing is missed while allowing focused review of each capability
+
+---
