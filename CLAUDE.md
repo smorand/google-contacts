@@ -175,6 +175,8 @@ The project includes a Claude skill at `~/.claude/skills/google-contacts/` that 
 - **Screenshot-based contact creation**: "Create contact from this screenshot: ~/Downloads/card.png"
 - **Contact search**: "Find contacts at Acme Corp"
 - **Contact details**: "Show me John's contact details"
+- **Mandatory validation**: All contact creation requires user confirmation before execution
+- **Name recognition**: Intelligent parsing of first/last names with confidence levels
 
 ### Updating the Skill
 
