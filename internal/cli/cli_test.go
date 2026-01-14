@@ -182,11 +182,11 @@ func TestValidateRequiredFlags(t *testing.T) {
 	// These tests verify the validation rules without calling the API
 
 	tests := []struct {
-		name      string
-		firstName string
-		lastName  string
-		phone     string
-		wantErr   bool
+		name        string
+		firstName   string
+		lastName    string
+		phone       string
+		wantErr     bool
 		errContains string
 	}{
 		{
@@ -197,35 +197,35 @@ func TestValidateRequiredFlags(t *testing.T) {
 			wantErr:   false,
 		},
 		{
-			name:      "missing first name",
-			firstName: "",
-			lastName:  "Doe",
-			phone:     "+33612345678",
-			wantErr:   true,
+			name:        "missing first name",
+			firstName:   "",
+			lastName:    "Doe",
+			phone:       "+33612345678",
+			wantErr:     true,
 			errContains: "first name",
 		},
 		{
-			name:      "missing last name",
-			firstName: "John",
-			lastName:  "",
-			phone:     "+33612345678",
-			wantErr:   true,
+			name:        "missing last name",
+			firstName:   "John",
+			lastName:    "",
+			phone:       "+33612345678",
+			wantErr:     true,
 			errContains: "last name",
 		},
 		{
-			name:      "missing phone",
-			firstName: "John",
-			lastName:  "Doe",
-			phone:     "",
-			wantErr:   true,
+			name:        "missing phone",
+			firstName:   "John",
+			lastName:    "Doe",
+			phone:       "",
+			wantErr:     true,
 			errContains: "phone",
 		},
 		{
-			name:      "all fields empty",
-			firstName: "",
-			lastName:  "",
-			phone:     "",
-			wantErr:   true,
+			name:        "all fields empty",
+			firstName:   "",
+			lastName:    "",
+			phone:       "",
+			wantErr:     true,
 			errContains: "first name",
 		},
 	}
