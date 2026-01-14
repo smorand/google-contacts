@@ -695,7 +695,7 @@
   - update --add-phone adds without removing
   - update --remove-phone removes specific phone
   - Google Contacts web UI shows all phones with correct labels
-  passes: false
+  passes: true
 
 - id: US-00017
   title: "google-contacts: Multiple emails support in create/update"

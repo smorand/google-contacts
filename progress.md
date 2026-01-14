@@ -822,3 +822,69 @@ updated, err := srv.People.UpdateContact(resourceName, person).
 - Used to build the UpdatePersonFields comma-separated list
 
 ---
+
+## 2026-01-14 - US-00016 - google-contacts: Multiple phones support in create/update
+
+**Status:** Completed successfully
+
+### What was implemented
+Added support for multiple phone numbers with types (labels) in both create and update commands.
+
+**Features:**
+- Create command: `--phone` flag can be repeated multiple times
+- Phone format: `type:number` or just `number` (defaults to mobile)
+- Valid phone types: mobile (default), work, home, main, other
+- Update command: new flags `--phones`, `--add-phone`, `--remove-phone`
+  - `--phone`: backward compatible, replaces first phone only
+  - `--phones`: replaces ALL phones (can be repeated)
+  - `--add-phone`: adds phones without removing existing
+  - `--remove-phone`: removes specific phones by value
+
+### Files changed
+- **Modified:**
+  - `internal/contacts/service.go` - Changed ContactInput.Phone to ContactInput.Phones []PhoneEntry, extended UpdateInput with Phones, AddPhones, RemovePhones fields
+  - `internal/cli/cli.go` - Added parsePhones function, updated create/update commands with new flags
+  - `internal/cli/cli_test.go` - Added TestParsePhones with comprehensive test cases
+  - `internal/contacts/service_test.go` - Updated ContactInput validation tests for multiple phones
+  - `CLAUDE.md` - Updated ContactInput documentation, added phone types section, updated UpdateInput documentation
+  - `README.md` - Updated create and update command documentation with multiple phone examples
+
+### Learnings
+
+**Cobra StringArray vs StringSlice:**
+- `StringArrayVarP` collects multiple flag occurrences into a slice
+- Each `-p value` adds one element to the slice
+- Use for flags that should be repeated: `--phone "mobile:123" --phone "work:456"`
+
+**Phone parsing with type prefix:**
+- Format: `type:number` where type is optional (defaults to mobile)
+- Use `strings.Index(s, ":")` to find separator position
+- Extract type and value: `type = s[:idx]`, `value = s[idx+1:]`
+- Validate type against allowed set: mobile, work, home, main, other
+
+**Backward compatibility in APIs:**
+- Keep old `--phone` flag working (replaces first phone)
+- Add new `--phones` flag for full replacement
+- Add `--add-phone` and `--remove-phone` for granular control
+- Priority: if multiple phone flags provided, process in defined order
+
+**UpdateInput pointer vs slice distinction:**
+- Use `*string` for single value updates (nil = not provided)
+- Use `[]PhoneEntry` directly (empty slice = nothing to add)
+- Check `len(slice) > 0` to determine if update needed
+- Process all phone operations in sequence: Phone → Phones → AddPhones → RemovePhones
+
+**Phone removal by value:**
+- Simple approach: compare phone values exactly
+- Build new slice with non-matching entries
+- Replace original slice with filtered result
+
+**Test coverage for parsing:**
+- Test all valid types (mobile, work, home, main, other)
+- Test invalid type (fax) returns error
+- Test empty phone value
+- Test case insensitivity (WORK → work)
+- Test mixed formats (with type and without)
+- Test empty input
+
+---
