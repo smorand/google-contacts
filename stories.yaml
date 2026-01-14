@@ -476,7 +476,7 @@
   - SKILL.md shows examples of natural language parsing
   - SKILL.md documents required fields (first name, last name, phone)
   - SKILL.md documents optional fields (email, company, position, notes)
-  passes: false
+  passes: true
 
 - id: US-00012
   title: "google-contacts skill: Create contact from screenshot"
