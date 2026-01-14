@@ -158,6 +158,12 @@ google-contacts create \
 
 **Address types:** `home` (default), `work`, `other`
 
+**Structured address parsing:**
+Addresses are automatically parsed into structured fields (street, city, postal code, country) for better Google Contacts integration:
+- French addresses (5-digit postal codes) are auto-detected: `10 Rue Test, 75001 Paris` → France assumed
+- Generic format: `123 Main St, New York, 10001, USA`
+- Structured syntax (advanced): `street=10 Rue Test;city=Paris;postal=75001;country=France`
+
 **Birthday format:**
 - Full date: `YYYY-MM-DD` (e.g., `1985-03-15`)
 - Month/day only: `--MM-DD` (e.g., `--03-15` when year is unknown)

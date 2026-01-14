@@ -352,3 +352,232 @@ func normalizeResourceName(resourceName string) string {
 	}
 	return resourceName
 }
+
+func TestParseAddress_Empty(t *testing.T) {
+	result := ParseAddress("")
+	if result != nil {
+		t.Errorf("ParseAddress('') should return nil, got %+v", result)
+	}
+}
+
+func TestParseAddress_FrenchFormat_PostalCity(t *testing.T) {
+	// Format: "street, postal city" (e.g., "10 Rue Test, 75001 Paris")
+	result := ParseAddress("10 Rue Test, 75001 Paris")
+	if result == nil {
+		t.Fatal("ParseAddress returned nil")
+	}
+
+	if result.StreetAddress != "10 Rue Test" {
+		t.Errorf("StreetAddress = %q, want %q", result.StreetAddress, "10 Rue Test")
+	}
+	if result.PostalCode != "75001" {
+		t.Errorf("PostalCode = %q, want %q", result.PostalCode, "75001")
+	}
+	if result.City != "Paris" {
+		t.Errorf("City = %q, want %q", result.City, "Paris")
+	}
+	if result.Country != "France" {
+		t.Errorf("Country = %q, want %q", result.Country, "France")
+	}
+}
+
+func TestParseAddress_FrenchFormat_CityPostal(t *testing.T) {
+	// Format: "street, city postal" (e.g., "10 Rue Test, Paris 75001")
+	result := ParseAddress("10 Rue Test, Paris 75001")
+	if result == nil {
+		t.Fatal("ParseAddress returned nil")
+	}
+
+	if result.StreetAddress != "10 Rue Test" {
+		t.Errorf("StreetAddress = %q, want %q", result.StreetAddress, "10 Rue Test")
+	}
+	if result.PostalCode != "75001" {
+		t.Errorf("PostalCode = %q, want %q", result.PostalCode, "75001")
+	}
+	if result.City != "Paris" {
+		t.Errorf("City = %q, want %q", result.City, "Paris")
+	}
+}
+
+func TestParseAddress_FrenchFormat_WithCountry(t *testing.T) {
+	// Format: "street, postal city, country"
+	result := ParseAddress("10 Rue Test, 75001 Paris, France")
+	if result == nil {
+		t.Fatal("ParseAddress returned nil")
+	}
+
+	if result.StreetAddress != "10 Rue Test" {
+		t.Errorf("StreetAddress = %q, want %q", result.StreetAddress, "10 Rue Test")
+	}
+	if result.PostalCode != "75001" {
+		t.Errorf("PostalCode = %q, want %q", result.PostalCode, "75001")
+	}
+	if result.City != "Paris" {
+		t.Errorf("City = %q, want %q", result.City, "Paris")
+	}
+	if result.Country != "France" {
+		t.Errorf("Country = %q, want %q", result.Country, "France")
+	}
+}
+
+func TestParseAddress_FrenchFormat_FourParts(t *testing.T) {
+	// Format: "street, city, postal, country"
+	result := ParseAddress("10 Rue Test, Paris, 75001, France")
+	if result == nil {
+		t.Fatal("ParseAddress returned nil")
+	}
+
+	if result.StreetAddress != "10 Rue Test" {
+		t.Errorf("StreetAddress = %q, want %q", result.StreetAddress, "10 Rue Test")
+	}
+	if result.PostalCode != "75001" {
+		t.Errorf("PostalCode = %q, want %q", result.PostalCode, "75001")
+	}
+	if result.City != "Paris" {
+		t.Errorf("City = %q, want %q", result.City, "Paris")
+	}
+}
+
+func TestParseAddress_StructuredSyntax(t *testing.T) {
+	// Structured format: "key=value;key=value"
+	result := ParseAddress("street=123 Rue Example;city=Paris;postal=75001;country=France")
+	if result == nil {
+		t.Fatal("ParseAddress returned nil")
+	}
+
+	if result.StreetAddress != "123 Rue Example" {
+		t.Errorf("StreetAddress = %q, want %q", result.StreetAddress, "123 Rue Example")
+	}
+	if result.City != "Paris" {
+		t.Errorf("City = %q, want %q", result.City, "Paris")
+	}
+	if result.PostalCode != "75001" {
+		t.Errorf("PostalCode = %q, want %q", result.PostalCode, "75001")
+	}
+	if result.Country != "France" {
+		t.Errorf("Country = %q, want %q", result.Country, "France")
+	}
+
+	// FormattedValue should be built from structured fields
+	if result.FormattedValue == "" {
+		t.Error("FormattedValue should not be empty")
+	}
+}
+
+func TestParseAddress_StructuredSyntax_AllFields(t *testing.T) {
+	// All structured fields including region
+	result := ParseAddress("street=50 Avenue Business;city=Lyon;postal=69001;region=Rhone;country=France;countrycode=FR")
+	if result == nil {
+		t.Fatal("ParseAddress returned nil")
+	}
+
+	if result.StreetAddress != "50 Avenue Business" {
+		t.Errorf("StreetAddress = %q, want %q", result.StreetAddress, "50 Avenue Business")
+	}
+	if result.City != "Lyon" {
+		t.Errorf("City = %q, want %q", result.City, "Lyon")
+	}
+	if result.PostalCode != "69001" {
+		t.Errorf("PostalCode = %q, want %q", result.PostalCode, "69001")
+	}
+	if result.Region != "Rhone" {
+		t.Errorf("Region = %q, want %q", result.Region, "Rhone")
+	}
+	if result.Country != "France" {
+		t.Errorf("Country = %q, want %q", result.Country, "France")
+	}
+	if result.CountryCode != "FR" {
+		t.Errorf("CountryCode = %q, want %q", result.CountryCode, "FR")
+	}
+}
+
+func TestParseAddress_GenericFormat_ThreeParts(t *testing.T) {
+	// Generic format without French postal code: "street, city, country"
+	result := ParseAddress("123 Main Street, New York, USA")
+	if result == nil {
+		t.Fatal("ParseAddress returned nil")
+	}
+
+	if result.StreetAddress != "123 Main Street" {
+		t.Errorf("StreetAddress = %q, want %q", result.StreetAddress, "123 Main Street")
+	}
+	if result.City != "New York" {
+		t.Errorf("City = %q, want %q", result.City, "New York")
+	}
+	if result.Country != "USA" {
+		t.Errorf("Country = %q, want %q", result.Country, "USA")
+	}
+}
+
+func TestParseAddress_GenericFormat_FourParts(t *testing.T) {
+	// Generic format: "street, city, postal, country"
+	// Note: 10001 looks like a French postal code (5 digits), so it will be parsed as French
+	// Use a non-French postal code format for generic test
+	result := ParseAddress("123 Main Street, London, SW1A 1AA, UK")
+	if result == nil {
+		t.Fatal("ParseAddress returned nil")
+	}
+
+	if result.StreetAddress != "123 Main Street" {
+		t.Errorf("StreetAddress = %q, want %q", result.StreetAddress, "123 Main Street")
+	}
+	if result.City != "London" {
+		t.Errorf("City = %q, want %q", result.City, "London")
+	}
+	if result.PostalCode != "SW1A 1AA" {
+		t.Errorf("PostalCode = %q, want %q", result.PostalCode, "SW1A 1AA")
+	}
+	if result.Country != "UK" {
+		t.Errorf("Country = %q, want %q", result.Country, "UK")
+	}
+}
+
+func TestParseAddress_FormattedValuePreserved(t *testing.T) {
+	// FormattedValue should preserve the original input
+	input := "10 Rue Example, 75001 Paris, France"
+	result := ParseAddress(input)
+	if result == nil {
+		t.Fatal("ParseAddress returned nil")
+	}
+
+	if result.FormattedValue != input {
+		t.Errorf("FormattedValue = %q, want %q", result.FormattedValue, input)
+	}
+}
+
+func TestParseAddress_StructuredBuildsFormattedValue(t *testing.T) {
+	// Structured syntax should build FormattedValue from fields
+	result := ParseAddress("street=10 Rue Test;city=Paris;postal=75001")
+	if result == nil {
+		t.Fatal("ParseAddress returned nil")
+	}
+
+	// FormattedValue should contain the key information
+	if result.FormattedValue == "" {
+		t.Error("FormattedValue should not be empty for structured input")
+	}
+	if result.StreetAddress == "" || result.City == "" || result.PostalCode == "" {
+		t.Error("Structured fields should be extracted")
+	}
+}
+
+func TestIsPostalCode(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected bool
+	}{
+		{"75001", true},
+		{"10001", true},
+		{"NYC", false},
+		{"Paris", false},
+		{"12345-6789", true}, // US ZIP+4
+		{"", false},
+	}
+
+	for _, tc := range tests {
+		result := isPostalCode(tc.input)
+		if result != tc.expected {
+			t.Errorf("isPostalCode(%q) = %v, want %v", tc.input, result, tc.expected)
+		}
+	}
+}

@@ -258,6 +258,8 @@ func TestExtractID(t *testing.T) {
   - `SearchResult` struct field access
   - `ContactDetails` with phone/email entries
   - Resource name normalization
+  - `ParseAddress()` - Structured address parsing (French and generic formats)
+  - `isPostalCode()` - Postal code detection helper
 
 ### Test Guidelines
 
@@ -367,6 +369,51 @@ Valid address types for create/update commands:
 Address format in CLI: `type:address` or just `address` (defaults to home)
 - Simple: `10 Rue Example, 75001 Paris, France` → home
 - Typed: `work:50 Avenue Business, Lyon, 69001` → work
+
+### Structured Address Parsing
+
+The service automatically parses addresses into structured fields for better Google Contacts integration.
+
+**StructuredAddress type:**
+```go
+type StructuredAddress struct {
+    FormattedValue string // Full address as a single string
+    StreetAddress  string // Street name and number
+    City           string // City name
+    PostalCode     string // Postal/ZIP code
+    Region         string // State/Province (optional)
+    Country        string // Country name
+    CountryCode    string // ISO 3166-1 alpha-2 code (optional)
+}
+```
+
+**Supported address formats:**
+
+1. **French format (auto-detected)**: Addresses with 5-digit postal codes are recognized as French
+   - `10 Rue Example, 75001 Paris` → street, postal, city, country=France
+   - `10 Rue Example, Paris 75001` → street, city, postal, country=France
+   - `10 Rue Example, 75001 Paris, France` → street, postal, city, country
+
+2. **Generic comma-separated**: For non-French addresses
+   - `123 Main St, New York, USA` → street, city, country
+   - `123 Main St, London, SW1A 1AA, UK` → street, city, postal, country
+
+3. **Structured syntax**: Explicit field specification with semicolons
+   - `street=10 Rue Test;city=Paris;postal=75001;country=France`
+   - Supported keys: `street`, `city`, `postal`, `region`, `country`, `countrycode`
+
+**Usage in code:**
+```go
+// Parse an address into structured fields
+structured := contacts.ParseAddress("10 Rue Example, 75001 Paris")
+// structured.StreetAddress = "10 Rue Example"
+// structured.PostalCode = "75001"
+// structured.City = "Paris"
+// structured.Country = "France"
+// structured.CountryCode = "FR"
+```
+
+**Note**: The parsing is automatic in CreateContact and UpdateContact. The CLI address input is transparently parsed and stored with structured fields in Google Contacts.
 
 ### Common PersonFields
 
