@@ -1321,3 +1321,83 @@ Enhanced address support with structured parsing for better Google Contacts API 
 - In production, context (presence of "USA" or state abbreviation) could disambiguate
 
 ---
+
+## 2026-01-14 - US-00025 - google-contacts skill: Document birthday support
+
+**Status:** Completed successfully
+
+### What was implemented
+
+Updated SKILL.md to comprehensively document birthday field support across all workflows and examples.
+
+### Files changed
+
+- **Modified:**
+  - `~/.claude/skills/google-contacts/SKILL.md` - Added birthday documentation throughout the skill
+  - `stories.yaml` - Updated US-00025 `passes: false` to `passes: true`
+  - `progress.md` - Added this entry
+
+### SKILL.md sections added/updated
+
+**Birthday format documentation:**
+- Added `--birthday, -b` to optional fields in create command
+- Added "Format de date de naissance" section with table showing:
+  - `YYYY-MM-DD` for full date
+  - `--MM-DD` for month/day only (year unknown)
+- Display format examples with age calculation
+
+**Natural language parsing:**
+- Added birthday examples to parsing table:
+  - "Jean Dupont né le 15 mars 1985, 0612345678"
+  - "Marie Martin, 0698765432, anniversaire le 20 juin"
+- Added keyword list for birthday detection: "né le", "née le", "date de naissance", "DOB", "birthday"
+
+**Screenshot extraction:**
+- Added date de naissance to extraction fields
+- Added "Champs de date de naissance à rechercher dans les images" section
+- Updated sources table: LinkedIn (sometimes), Formulaire/CV, Pièce d'identité
+
+**Validation prompts:**
+- Updated all validation prompt examples to include "Naissance" field
+- Added example without year: "15 mars" (month/day only format)
+- Age calculation shown when year is known: "(39 ans)"
+
+**Update command:**
+- Added `--birthday` and `--clear-birthday` flags to flags table
+- Added "Gestion de la date de naissance" section with examples
+- Added "Modifications de la date de naissance" table with natural language mappings
+
+**Workflows:**
+- Workflow 1: Updated to include birthday in example request and validation prompt
+- Workflow 2: Updated to mention birthday extraction and include in validation
+
+### Learnings
+
+**Skill documentation completeness:**
+- Birthday is a field that can appear in multiple places in SKILL.md
+- Important to update ALL relevant sections: create command, update command, validation prompts, parsing examples, screenshot extraction, workflows
+- Consistent field naming across all examples ("Naissance" in French)
+
+**Age calculation in prompts:**
+- Including calculated age in validation prompts (e.g., "39 ans") helps users verify data
+- Age should only appear when year is known
+- Month/day only format should not show age
+
+**Date format flexibility:**
+- Supporting both full dates (YYYY-MM-DD) and month/day only (--MM-DD) is important
+- ISO 8601 convention for unknown year (--MM-DD) is intuitive
+- Natural language parsing should recognize both "né le" and "anniversaire"
+
+**Screenshot extraction patterns:**
+- Different image sources have different likelihood of containing birthdays:
+  - High: Formulaire/CV, Pièce d'identité
+  - Medium: LinkedIn profiles (sometimes)
+  - Low: Business cards, email signatures
+- Include keyword variations in multiple languages (FR/EN)
+
+**Documentation-only stories:**
+- This story only modified SKILL.md, not CLI code
+- Still required updating stories.yaml and progress.md
+- No code tests needed since no Go code was changed
+
+---
