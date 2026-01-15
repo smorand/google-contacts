@@ -2034,3 +2034,50 @@ Stories should be implemented in order:
 **Remaining issues:** None
 
 ---
+
+## 2026-01-15 - US-00040 - google-contacts skill: Document MCP server deployment and usage
+
+**Status:** Success
+
+**What was implemented:**
+- Enhanced README.md with proper project title ("Google Contacts MCP Server")
+- Added comprehensive MCP Server section with feature overview
+- Added Quick Start guide for local development
+- Added Production Deployment guide with Terraform and Secret Manager steps
+- Added MCP Client Configuration example for Claude Desktop
+- Added Getting an API Key instructions with OAuth flow details
+- Added Available MCP Tools reference table
+- Added Self-Hosting Guide with 8-step instructions
+- Updated SKILL.md (outside repo) with MCP Server section
+
+**Files changed:**
+- `README.md` - Major enhancements to MCP documentation (+140 lines)
+  - Features overview (multi-user, OAuth, Firestore, Cloud Run)
+  - Quick Start for local development
+  - Production Deployment with Terraform
+  - MCP Client Configuration JSON example
+  - OAuth flow for API key generation
+  - Available tools table
+  - Self-Hosting Guide
+- `~/.claude/skills/google-contacts/SKILL.md` - Added MCP Server section
+  - MCP availability note
+  - MCP client configuration example
+  - Getting an API Key steps
+  - Available MCP Tools table
+  - When to Use MCP vs CLI comparison table
+
+**Learnings:**
+- CLAUDE.md already had comprehensive Terraform and Firestore documentation from previous stories
+- SKILL.md is outside the git repository (in ~/.claude/skills/) so changes are not tracked
+- The README.md needed significant restructuring to be user-friendly for MCP deployment
+- Self-hosting guide needs step-by-step instructions for new users
+
+**Documentation verification:**
+- README.md has MCP Server section ✓
+- README.md has deployment instructions ✓  
+- SKILL.md mentions MCP option ✓
+- CLAUDE.md documents Terraform infrastructure ✓
+- CLAUDE.md documents Firestore schema ✓
+- Configuration examples are valid JSON ✓
+
+---
