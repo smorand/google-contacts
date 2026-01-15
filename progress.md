@@ -1940,3 +1940,60 @@ Stories should be implemented in order:
 **Remaining issues:** None
 
 ---
+
+## 2026-01-15 - US-00038 - OAuth success page with API Key display
+
+**Status:** Success
+
+**What was implemented:**
+- HTML success page template with clean, responsive design
+- `/auth/success` endpoint that renders the success page with API key
+- Template embedded using Go's `embed` package for single-binary deployment
+- Copy-to-clipboard button with JavaScript functionality
+- MCP client configuration example (JSON format) displayed on page
+- Security warning about storing API key securely
+- User email displayed when available (optional field)
+- Fallback server URL construction from request host when baseURL not configured
+- Updated OAuth callback to redirect to success page instead of returning JSON
+
+**Files changed:**
+- `internal/mcp/templates/success.html` - New HTML template with:
+  - Responsive CSS design (mobile-friendly)
+  - API key display with monospace font
+  - Copy-to-clipboard button with success feedback
+  - MCP client configuration example with syntax highlighting
+  - Security warning section
+  - User email display (conditional)
+- `internal/mcp/auth.go` - Added:
+  - `//go:embed templates/success.html` directive for template embedding
+  - `successPageTemplate` variable initialized in `init()`
+  - `SuccessPageData` struct for template data
+  - `HandleSuccess()` handler for GET /auth/success
+  - Updated `serveCallbackResponse()` to redirect to success page
+  - Added `net/url` import for URL escaping
+  - Updated `SetupRoutes()` to register /auth/success
+- `internal/mcp/auth_test.go` - Added tests:
+  - `TestHandleSuccess_ValidKey` - Full success page rendering
+  - `TestHandleSuccess_MissingKey` - 400 error for missing key
+  - `TestHandleSuccess_EmptyKey` - 400 error for empty key
+  - `TestHandleSuccess_NoEmail` - Success without email parameter
+  - `TestHandleSuccess_FallbackServerURL` - URL construction from request
+  - Updated `TestAuthHandler_SetupRoutes` to verify /auth/success route
+- `CLAUDE.md` - Updated:
+  - Server architecture section with templates/ directory
+  - OAuth endpoints table with /auth/success
+  - OAuth flow updated with redirect to success page step
+  - Implementation section with HandleSuccess() handler
+  - Added "Success Page (/auth/success)" documentation section
+
+**Learnings:**
+- Go's `embed` package allows embedding static files at compile time for single-binary deployment
+- Template parsing in `init()` ensures templates are validated at startup
+- HTML templates can use `{{if .Field}}...{{end}}` for conditional rendering
+- URL query parameters should be escaped with `url.QueryEscape()` before redirection
+- Request host can be used as fallback for server URL when base URL not configured
+- Comprehensive tests should verify Content-Type header, not just body content
+
+**Remaining issues:** None
+
+---

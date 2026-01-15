@@ -2046,7 +2046,7 @@
   - Server URL shown in configuration example
   - Security warning visible
   - Page renders correctly in browser
-  passes: false
+  passes: true
 - id: US-00039
   title: 'google-contacts: MCP server integration with per-user tokens'
   priority: 39
