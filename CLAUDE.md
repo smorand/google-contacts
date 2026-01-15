@@ -1042,6 +1042,79 @@ gcp:
 - `mcp_service_account` - Service account email
 - `artifact_registry_url` - Docker registry URL for pushing images
 
+### Firestore Database (iac/database-firestore.tf)
+
+The Firestore database stores API keys for MCP server authentication.
+
+**Resources:**
+| Resource | Type | Description |
+|----------|------|-------------|
+| `google_firestore_database.main` | Firestore Database | Native mode database in eur3 |
+| `google_firestore_index.api_keys_created_at` | Firestore Index | Index by creation date (descending) |
+| `google_firestore_index.api_keys_user_email` | Firestore Index | Index by user email + creation date |
+
+**Configuration (from config.yaml):**
+```yaml
+gcp:
+  resources:
+    firestore:
+      database_id: "(default)"    # Database name
+      location_id: eur3           # Europe multi-region
+```
+
+**Outputs:**
+- `firestore_database_name` - Database name
+- `firestore_location` - Database location
+
+### Firestore Collection Structure
+
+The `api_keys` collection stores API key documents for MCP authentication. This collection is NOT created by Terraform - Firestore creates collections automatically on first document write.
+
+**Collection:** `api_keys`
+**Document ID:** The API key itself (UUID v4, e.g., `550e8400-e29b-41d4-a716-446655440000`)
+
+**Document Fields:**
+| Field | Type | Description | Required |
+|-------|------|-------------|----------|
+| `refresh_token` | string | OAuth refresh token for Google API access | Yes |
+| `user_email` | string | Email address from OAuth flow | No |
+| `created_at` | string | ISO 8601 timestamp when key was created | No |
+| `description` | string | Optional description for the API key | No |
+
+**Example Document:**
+```json
+{
+  "refresh_token": "1//0gxxxxxx-xxxxxxxx",
+  "user_email": "user@example.com",
+  "created_at": "2026-01-15T10:00:00Z",
+  "description": "MCP access for Claude AI assistant"
+}
+```
+
+**Indexes:**
+1. **api_keys_created_at**: For listing keys by creation date (admin purposes)
+   - `created_at` DESCENDING + `__name__` DESCENDING
+2. **api_keys_user_email**: For finding keys by user
+   - `user_email` ASCENDING + `created_at` DESCENDING + `__name__` DESCENDING
+
+**Go Type Definition (from internal/mcp/server.go):**
+```go
+type APIKeyDocument struct {
+    RefreshToken string `firestore:"refresh_token"`
+    UserEmail    string `firestore:"user_email"`
+    CreatedAt    string `firestore:"created_at"`
+    Description  string `firestore:"description"`
+}
+```
+
+**Usage Pattern:**
+1. User completes OAuth flow via `/auth` endpoint
+2. Server generates UUID v4 API key
+3. Server stores refresh token in Firestore with the API key as document ID
+4. User receives API key to use in `Authorization: Bearer <key>` header
+5. On each request, server looks up API key in Firestore
+6. If found, uses stored refresh_token for Google API authentication
+
 ### Adding New Resources
 
 1. Create a new `.tf` file in `iac/` named by feature
@@ -1057,3 +1130,5 @@ gcp:
 - The `init/` folder creates infrastructure that other resources depend on
 - After `make init-deploy`, the backend config is automatically copied to `iac/provider.tf`
 - Use `config.yaml` as the single source of truth for configuration
+- Firestore collections are created automatically on first write (not by Terraform)
+- API keys use document ID as the key itself for O(1) lookup performance

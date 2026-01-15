@@ -1790,3 +1790,31 @@ Stories should be implemented in order:
 **Remaining issues:** None
 
 ---
+
+## 2026-01-15 - US-00033 - terraform: Firestore database and indexes
+
+**Status:** Success
+
+**What was implemented:**
+- Created `iac/database-firestore.tf` with complete Firestore database configuration
+- Firestore database in Native mode with eur3 (Europe multi-region) location
+- Composite indexes for efficient API key queries (by created_at and user_email)
+- Delete protection enabled to prevent accidental deletion
+- Comprehensive documentation of Firestore collection structure in CLAUDE.md
+
+**Files changed:**
+- `iac/database-firestore.tf` - New Firestore database and indexes terraform file
+- `CLAUDE.md` - Added Firestore Database section and detailed collection structure documentation
+
+**Learnings:**
+- Firestore database resource (`google_firestore_database`) can only be created once per project
+- If the default database already exists, the terraform resource will fail (need to import or remove)
+- Firestore collections are NOT created by Terraform - they're created automatically on first document write
+- Using the API key itself as the document ID enables O(1) lookup performance (no query needed)
+- `delete_protection_state = "DELETE_PROTECTION_ENABLED"` prevents accidental database deletion
+- Composite indexes require all fields to be specified, including `__name__` for sort order
+- Location `eur3` is the Europe multi-region option (not `europe-west1` which is regional)
+
+**Remaining issues:** None
+
+---
