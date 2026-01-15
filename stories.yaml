@@ -1917,7 +1917,7 @@
   - Secret created with correct name
   - gcloud secrets describe shows secret exists
   - Cloud Run service account can access secret
-  passes: false
+  passes: true
 - id: US-00035
   title: 'google-contacts: Makefile deployment targets'
   priority: 35

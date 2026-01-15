@@ -1818,3 +1818,28 @@ Stories should be implemented in order:
 **Remaining issues:** None
 
 ---
+
+## 2026-01-15 - US-00034 - terraform: Secret Manager for OAuth credentials
+
+**Status:** Success
+
+**What was implemented:**
+- Created `iac/secrets.tf` with Secret Manager secret resource for OAuth credentials
+- Secret uses automatic replication for high availability
+- Manual secret version creation documented (keeps sensitive data out of Terraform state)
+- Updated CLAUDE.md with comprehensive Secret Manager documentation
+
+**Files changed:**
+- `iac/secrets.tf` - New Secret Manager terraform configuration
+- `CLAUDE.md` - Added Secret Manager section with resource table, configuration, outputs, and manual creation instructions
+
+**Learnings:**
+- Secret Manager secrets vs secret versions: Terraform creates the secret container, but actual credential data should be uploaded manually via gcloud to avoid storing sensitive data in Terraform state
+- The `replication { auto {} }` block enables automatic replication for Google-managed replication across regions
+- Secret versions can be created manually using: `gcloud secrets versions add <secret-id> --data-file=<path>`
+- Cloud Run service account already has `roles/secretmanager.secretAccessor` from the workload-mcp.tf IAM binding
+- Labels like `purpose = "oauth-credentials"` help with resource organization and auditing
+
+**Remaining issues:** None
+
+---
