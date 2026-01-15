@@ -16,7 +16,8 @@ Following golang skill conventions:
 google-contacts/
 ├── go.mod                    # Module at root
 ├── go.sum
-├── Makefile                  # Build automation + Terraform targets
+├── Makefile                  # Build automation + Terraform + Docker targets
+├── Dockerfile                # MCP server container image
 ├── README.md                 # User documentation
 ├── CLAUDE.md                 # AI development guide
 ├── config.yaml               # Terraform configuration
@@ -977,6 +978,7 @@ make deploy  # Apply changes
 
 ### Makefile Targets
 
+**Terraform Targets:**
 | Target | Description |
 |--------|-------------|
 | `init-plan` | Plan initialization resources |
@@ -986,6 +988,63 @@ make deploy  # Apply changes
 | `deploy` | Deploy main infrastructure |
 | `undeploy` | Destroy main infrastructure |
 | `update-backend` | Regenerate iac/provider.tf from template |
+
+**Docker/Cloud Run Deployment Targets:**
+| Target | Description |
+|--------|-------------|
+| `docker-build` | Build container image locally |
+| `docker-push` | Push container to Artifact Registry |
+| `cloud-run-deploy` | Full deployment (build + push + deploy) |
+
+### Docker Deployment
+
+The project includes a Dockerfile for containerized deployment of the MCP server.
+
+**Dockerfile:**
+- Multi-stage build using Go 1.25
+- Final image based on Alpine Linux (~20MB)
+- Runs as non-root user for security
+- Exposes port 8080
+- Health check endpoint at `/health` (wget-based)
+
+**Environment Variables (for Cloud Run):**
+| Variable | Description |
+|----------|-------------|
+| `PORT` | Server listening port (default: 8080) |
+| `FIRESTORE_PROJECT` | GCP project for API key validation |
+
+**Building Locally:**
+```bash
+# Build the image
+make docker-build
+
+# Run locally (no auth)
+docker run -p 8080:8080 google-contacts-mcp:latest
+
+# Run with static API key
+docker run -p 8080:8080 -e API_KEY=my-secret google-contacts-mcp:latest --api-key "$API_KEY"
+```
+
+**Deploying to Cloud Run:**
+```bash
+# Full deployment (builds, pushes, and deploys)
+make cloud-run-deploy
+
+# Or step by step:
+make docker-build    # Build image
+make docker-push     # Push to Artifact Registry
+# Then use gcloud run deploy manually
+```
+
+**Configuration:**
+The Makefile reads GCP settings from `config.yaml`:
+- `GCP_PROJECT`: From `gcp.project_id`
+- `GCP_REGION`: From `gcp.resources.cloud_run.region`
+
+Override with environment variables if needed:
+```bash
+GCP_PROJECT=my-project GCP_REGION=us-central1 make cloud-run-deploy
+```
 
 ### File Organization Rules
 
