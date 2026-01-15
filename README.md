@@ -11,6 +11,7 @@ A command-line tool for managing Google Contacts using Google People API v1.
 - Delete contacts with confirmation prompt
 - Supports multiple phones, emails, and addresses with type labels
 - Supports birthday with or without year (YYYY-MM-DD or --MM-DD)
+- **Automatic phone number normalization** to international format (French local → +33)
 - Shares credentials with email-manager for unified OAuth consent
 
 ## Prerequisites
@@ -143,6 +144,13 @@ google-contacts create \
 - Multiple: Use `-p` flag multiple times
 
 **Phone types:** `mobile` (default), `work`, `home`, `main`, `other`
+
+**Phone number normalization:** Phone numbers are automatically normalized to international format:
+- `0612345678` → `+33612345678` (French local → international)
+- `06 12 34 56 78` → `+33612345678` (spaces removed)
+- `06.12.34.56.78` → `+33612345678` (dots removed)
+- `0033612345678` → `+33612345678` (00 prefix → +)
+- `+33612345678` → `+33612345678` (already international, kept as-is)
 
 **Email format:**
 - Simple: `john@acme.com` (defaults to "work" type)

@@ -445,6 +445,58 @@ func isPostalCode(s string) bool {
 	return false
 }
 
+// NormalizePhoneNumber converts a phone number to international format with country code.
+// Rules:
+// - Phone starting with "0" (French local format): prepends "+33" and removes leading "0"
+// - Phone starting with "00" (international prefix): replaces "00" with "+"
+// - Phone already starting with "+": keeps as-is
+// - Removes spaces, dashes, dots, and parentheses for consistency
+//
+// Examples:
+//   - "0612345678" → "+33612345678"
+//   - "06 12 34 56 78" → "+33612345678"
+//   - "06.12.34.56.78" → "+33612345678"
+//   - "+33612345678" → "+33612345678"
+//   - "+1-555-123-4567" → "+15551234567"
+//   - "0033612345678" → "+33612345678"
+func NormalizePhoneNumber(phone string) string {
+	if phone == "" {
+		return ""
+	}
+
+	// Remove all non-essential characters: spaces, dashes, dots, parentheses
+	var cleaned strings.Builder
+	for _, c := range phone {
+		if (c >= '0' && c <= '9') || c == '+' {
+			cleaned.WriteRune(c)
+		}
+	}
+	result := cleaned.String()
+
+	if result == "" {
+		return ""
+	}
+
+	// Handle different formats
+	switch {
+	case strings.HasPrefix(result, "+"):
+		// Already international format, return as-is
+		return result
+
+	case strings.HasPrefix(result, "00"):
+		// International prefix "00" → "+"
+		return "+" + result[2:]
+
+	case strings.HasPrefix(result, "0"):
+		// French local format, prepend +33 and remove leading 0
+		return "+33" + result[1:]
+
+	default:
+		// No prefix, return as-is (might be just digits)
+		return result
+	}
+}
+
 // CreateContact creates a new contact in Google Contacts.
 // Returns the created contact's resource name and display name.
 func (s *Service) CreateContact(ctx context.Context, input ContactInput) (*CreatedContact, error) {
@@ -458,13 +510,14 @@ func (s *Service) CreateContact(ctx context.Context, input ContactInput) (*Creat
 	}
 
 	// Add phone numbers (required, at least one)
+	// Normalize phone numbers to international format
 	for _, phone := range input.Phones {
 		phoneType := phone.Type
 		if phoneType == "" {
 			phoneType = "mobile"
 		}
 		person.PhoneNumbers = append(person.PhoneNumbers, &people.PhoneNumber{
-			Value: phone.Value,
+			Value: NormalizePhoneNumber(phone.Value),
 			Type:  phoneType,
 		})
 	}
@@ -752,15 +805,17 @@ func (s *Service) UpdateContact(ctx context.Context, resourceName string, input 
 	phoneUpdated := false
 
 	// Option 1: --phone flag replaces first phone (backward compatibility)
+	// Normalize phone number to international format
 	if input.Phone != nil {
 		if len(current.PhoneNumbers) == 0 {
 			current.PhoneNumbers = []*people.PhoneNumber{{Type: "mobile"}}
 		}
-		current.PhoneNumbers[0].Value = *input.Phone
+		current.PhoneNumbers[0].Value = NormalizePhoneNumber(*input.Phone)
 		phoneUpdated = true
 	}
 
 	// Option 2: Phones slice replaces all phones
+	// Normalize all phone numbers to international format
 	if len(input.Phones) > 0 {
 		current.PhoneNumbers = nil
 		for _, phone := range input.Phones {
@@ -769,7 +824,7 @@ func (s *Service) UpdateContact(ctx context.Context, resourceName string, input 
 				phoneType = "mobile"
 			}
 			current.PhoneNumbers = append(current.PhoneNumbers, &people.PhoneNumber{
-				Value: phone.Value,
+				Value: NormalizePhoneNumber(phone.Value),
 				Type:  phoneType,
 			})
 		}
@@ -777,6 +832,7 @@ func (s *Service) UpdateContact(ctx context.Context, resourceName string, input 
 	}
 
 	// Option 3: AddPhones adds without removing existing
+	// Normalize all phone numbers to international format
 	if len(input.AddPhones) > 0 {
 		for _, phone := range input.AddPhones {
 			phoneType := phone.Type
@@ -784,7 +840,7 @@ func (s *Service) UpdateContact(ctx context.Context, resourceName string, input 
 				phoneType = "mobile"
 			}
 			current.PhoneNumbers = append(current.PhoneNumbers, &people.PhoneNumber{
-				Value: phone.Value,
+				Value: NormalizePhoneNumber(phone.Value),
 				Type:  phoneType,
 			})
 		}
@@ -792,12 +848,14 @@ func (s *Service) UpdateContact(ctx context.Context, resourceName string, input 
 	}
 
 	// Option 4: RemovePhones removes specific phones by value
+	// Normalize the removal value for comparison
 	if len(input.RemovePhones) > 0 {
 		var remaining []*people.PhoneNumber
 		for _, phone := range current.PhoneNumbers {
 			shouldRemove := false
 			for _, removeValue := range input.RemovePhones {
-				if phone.Value == removeValue {
+				// Compare normalized values
+				if phone.Value == NormalizePhoneNumber(removeValue) {
 					shouldRemove = true
 					break
 				}

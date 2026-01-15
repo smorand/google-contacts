@@ -581,3 +581,103 @@ func TestIsPostalCode(t *testing.T) {
 		}
 	}
 }
+
+func TestNormalizePhoneNumber(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		// French local format (starting with 0)
+		{
+			name:     "French mobile without spaces",
+			input:    "0612345678",
+			expected: "+33612345678",
+		},
+		{
+			name:     "French mobile with spaces",
+			input:    "06 12 34 56 78",
+			expected: "+33612345678",
+		},
+		{
+			name:     "French mobile with dots",
+			input:    "06.12.34.56.78",
+			expected: "+33612345678",
+		},
+		{
+			name:     "French mobile with dashes",
+			input:    "06-12-34-56-78",
+			expected: "+33612345678",
+		},
+		{
+			name:     "French landline",
+			input:    "0142001234",
+			expected: "+33142001234",
+		},
+
+		// Already international format (starting with +)
+		{
+			name:     "French international format",
+			input:    "+33612345678",
+			expected: "+33612345678",
+		},
+		{
+			name:     "US format with dashes",
+			input:    "+1-555-123-4567",
+			expected: "+15551234567",
+		},
+		{
+			name:     "US format with parentheses",
+			input:    "+1 (555) 123-4567",
+			expected: "+15551234567",
+		},
+		{
+			name:     "UK format",
+			input:    "+44 20 7123 4567",
+			expected: "+442071234567",
+		},
+
+		// International prefix 00
+		{
+			name:     "French with 00 prefix",
+			input:    "0033612345678",
+			expected: "+33612345678",
+		},
+		{
+			name:     "US with 00 prefix",
+			input:    "0015551234567",
+			expected: "+15551234567",
+		},
+
+		// Edge cases
+		{
+			name:     "empty string",
+			input:    "",
+			expected: "",
+		},
+		{
+			name:     "only spaces",
+			input:    "   ",
+			expected: "",
+		},
+		{
+			name:     "digits only no prefix",
+			input:    "612345678",
+			expected: "612345678", // Returns as-is (no prefix to process)
+		},
+		{
+			name:     "mixed separators",
+			input:    "06.12-34 56.78",
+			expected: "+33612345678",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result := NormalizePhoneNumber(tc.input)
+			if result != tc.expected {
+				t.Errorf("NormalizePhoneNumber(%q) = %q, want %q", tc.input, result, tc.expected)
+			}
+		})
+	}
+}
