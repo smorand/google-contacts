@@ -416,6 +416,42 @@ Are you sure you want to delete this contact? (y/N): y
 ✓ Contact 'John Doe' has been deleted.
 ```
 
+### MCP Server (Remote Access)
+
+Start an MCP (Model Context Protocol) server for remote AI assistant access:
+
+```bash
+# Start on default port (8080)
+google-contacts mcp
+
+# Start on custom port
+google-contacts mcp --port 3000
+
+# Start with API key authentication
+google-contacts mcp --api-key "your-secret-key"
+
+# Bind to all interfaces (for remote access)
+google-contacts mcp --host 0.0.0.0 --port 8080
+```
+
+**Flags:**
+| Flag | Short | Default | Description |
+|------|-------|---------|-------------|
+| `--port` | `-p` | 8080 | Port to listen on |
+| `--host` | `-H` | localhost | Host to bind to |
+| `--api-key` | | | Static API key for authentication |
+| `--firestore-project` | | | GCP project for Firestore API key validation |
+
+**Available tools:**
+- `ping` - Test connectivity with the server
+
+**Protocol:**
+- Uses MCP protocol over Streamable HTTP transport
+- Session-based communication (requires `Mcp-Session-Id` header after initialization)
+- SSE (Server-Sent Events) for streaming responses
+
+See `google-contacts mcp --help` for more details.
+
 ## Claude Skill Integration
 
 This project includes a Claude skill for natural language interaction with Google Contacts.
@@ -455,8 +491,10 @@ google-contacts/
 ├── internal/
 │   ├── cli/
 │   │   └── cli.go            # CLI commands
-│   └── contacts/
-│       └── service.go        # People API service wrapper
+│   ├── contacts/
+│   │   └── service.go        # People API service wrapper
+│   └── mcp/
+│       └── server.go         # MCP server implementation
 └── pkg/
     └── auth/
         └── auth.go           # OAuth2 authentication

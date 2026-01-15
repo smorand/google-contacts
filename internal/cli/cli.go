@@ -12,6 +12,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"google-contacts/internal/contacts"
+	mcpserver "google-contacts/internal/mcp"
 )
 
 // Version information
@@ -62,6 +63,14 @@ var (
 	updateNotes         string
 	updateBirthday      string // Format: YYYY-MM-DD or --MM-DD
 	updateClearBirthday bool   // Clear birthday
+)
+
+// MCP server command flags
+var (
+	mcpPort             int
+	mcpHost             string
+	mcpAPIKey           string
+	mcpFirestoreProject string
 )
 
 // Command definitions
@@ -324,6 +333,44 @@ Other fields:
   google-contacts update c123456789 --clear-birthday`,
 		Args: cobra.ExactArgs(1),
 		RunE: runUpdate,
+	}
+
+	mcpCmd = &cobra.Command{
+		Use:   "mcp",
+		Short: "Start the MCP server",
+		Long: `Start the MCP (Model Context Protocol) server for remote access.
+
+The MCP server enables AI assistants to manage Google Contacts remotely
+using the standard MCP protocol over HTTP.
+
+Available tools:
+  - ping: Test connectivity with the server
+
+Future tools (to be implemented):
+  - create_contact: Create a new contact
+  - search_contacts: Search contacts by query
+  - get_contact: Get contact details by ID
+  - update_contact: Update an existing contact
+  - delete_contact: Delete a contact
+
+Authentication:
+  - Static API key: Use --api-key flag
+  - Firestore-based: Use --firestore-project flag (future)
+
+The server listens on the specified host and port, serving the MCP
+protocol via streamable HTTP transport.`,
+		Example: `  # Start MCP server on default port (8080)
+  google-contacts mcp
+
+  # Start on custom port
+  google-contacts mcp --port 3000
+
+  # Start with API key authentication
+  google-contacts mcp --api-key "your-secret-key"
+
+  # Start on all interfaces (for remote access)
+  google-contacts mcp --host 0.0.0.0 --port 8080`,
+		RunE: runMCP,
 	}
 )
 
@@ -759,6 +806,20 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
+func runMCP(cmd *cobra.Command, args []string) error {
+	// Create MCP server configuration
+	cfg := &mcpserver.Config{
+		Host:             mcpHost,
+		Port:             mcpPort,
+		APIKey:           mcpAPIKey,
+		FirestoreProject: mcpFirestoreProject,
+	}
+
+	// Create and run the MCP server
+	server := mcpserver.NewServer(cfg)
+	return server.Run(context.Background())
+}
+
 // displayUpdateSummary shows the before/after contact details.
 func displayUpdateSummary(before, after *contacts.ContactDetails) {
 	green := color.New(color.FgGreen).SprintFunc()
@@ -1127,6 +1188,12 @@ func Init() {
 	updateCmd.Flags().StringVarP(&updateBirthday, "birthday", "b", "", "Birthday (YYYY-MM-DD or --MM-DD)")
 	updateCmd.Flags().BoolVar(&updateClearBirthday, "clear-birthday", false, "Remove birthday from contact")
 
+	// Setup mcp command flags
+	mcpCmd.Flags().IntVarP(&mcpPort, "port", "p", 8080, "Port to listen on")
+	mcpCmd.Flags().StringVarP(&mcpHost, "host", "H", "localhost", "Host to bind to")
+	mcpCmd.Flags().StringVar(&mcpAPIKey, "api-key", "", "Static API key for authentication")
+	mcpCmd.Flags().StringVar(&mcpFirestoreProject, "firestore-project", "", "GCP project for Firestore API key validation")
+
 	// Register commands
 	RootCmd.AddCommand(versionCmd)
 	RootCmd.AddCommand(createCmd)
@@ -1134,4 +1201,5 @@ func Init() {
 	RootCmd.AddCommand(showCmd)
 	RootCmd.AddCommand(deleteCmd)
 	RootCmd.AddCommand(updateCmd)
+	RootCmd.AddCommand(mcpCmd)
 }
