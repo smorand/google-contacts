@@ -54,24 +54,8 @@ resource "google_firestore_database" "main" {
 # FIRESTORE INDEXES
 # ============================================
 
-# Index for listing API keys by creation date (for admin purposes)
-resource "google_firestore_index" "api_keys_created_at" {
-  project    = local.project_id
-  database   = google_firestore_database.main.name
-  collection = "api_keys"
-
-  fields {
-    field_path = "created_at"
-    order      = "DESCENDING"
-  }
-
-  fields {
-    field_path = "__name__"
-    order      = "DESCENDING"
-  }
-
-  depends_on = [google_firestore_database.main]
-}
+# Note: Single-field indexes (like created_at DESC) are automatically created by Firestore.
+# Only composite indexes need to be defined explicitly.
 
 # Index for finding keys by user email (for listing user's keys)
 resource "google_firestore_index" "api_keys_user_email" {

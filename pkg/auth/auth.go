@@ -23,8 +23,11 @@ import (
 // contextKey is a type for context keys used in this package.
 type contextKey string
 
-// refreshTokenKey is the context key for storing refresh tokens.
-const refreshTokenKey contextKey = "refresh_token"
+// Context keys for storing authentication data.
+const (
+	refreshTokenKey contextKey = "refresh_token"
+	oauthConfigKey  contextKey = "oauth_config"
+)
 
 // WithRefreshToken returns a new context with the refresh token stored.
 // This is used by the MCP server to pass user-specific tokens to the People API service.
@@ -36,6 +39,18 @@ func WithRefreshToken(ctx context.Context, refreshToken string) context.Context 
 func GetRefreshTokenFromContext(ctx context.Context) (string, bool) {
 	token, ok := ctx.Value(refreshTokenKey).(string)
 	return token, ok
+}
+
+// WithOAuthConfig returns a new context with the OAuth2 configuration stored.
+// This is used by the MCP server to pass the OAuth config loaded from Secret Manager.
+func WithOAuthConfig(ctx context.Context, config *oauth2.Config) context.Context {
+	return context.WithValue(ctx, oauthConfigKey, config)
+}
+
+// GetOAuthConfigFromContext retrieves the OAuth2 config from context, if present.
+func GetOAuthConfigFromContext(ctx context.Context) (*oauth2.Config, bool) {
+	config, ok := ctx.Value(oauthConfigKey).(*oauth2.Config)
+	return config, ok
 }
 
 const (
@@ -68,20 +83,29 @@ func GetCredentialsPath() string {
 }
 
 // GetClient returns an HTTP client with OAuth2 authentication.
-// If a refresh token is present in the context (via WithRefreshToken), it uses that token.
-// Otherwise, it falls back to the token stored on disk.
+// Authentication sources are checked in order:
+// 1. OAuth config from context + refresh token from context (MCP server mode)
+// 2. Local credentials file + refresh token from context
+// 3. Local credentials file + local token file (CLI mode)
 func GetClient(ctx context.Context) (*http.Client, error) {
-	credPath := filepath.Join(GetCredentialsPath(), CredentialsFile)
-	tokenPath := filepath.Join(GetCredentialsPath(), TokenFile)
+	var config *oauth2.Config
+	var err error
 
-	b, err := os.ReadFile(credPath)
-	if err != nil {
-		return nil, fmt.Errorf("unable to read credentials file %s: %w", credPath, err)
-	}
+	// Check if OAuth config is provided via context (for MCP server use)
+	if ctxConfig, ok := GetOAuthConfigFromContext(ctx); ok && ctxConfig != nil {
+		config = ctxConfig
+	} else {
+		// Fall back to loading from credentials file (CLI mode)
+		credPath := filepath.Join(GetCredentialsPath(), CredentialsFile)
+		b, err := os.ReadFile(credPath)
+		if err != nil {
+			return nil, fmt.Errorf("unable to read credentials file %s: %w", credPath, err)
+		}
 
-	config, err := google.ConfigFromJSON(b, Scopes...)
-	if err != nil {
-		return nil, fmt.Errorf("unable to parse credentials: %w", err)
+		config, err = google.ConfigFromJSON(b, Scopes...)
+		if err != nil {
+			return nil, fmt.Errorf("unable to parse credentials: %w", err)
+		}
 	}
 
 	// Check if a refresh token is provided via context (for MCP server use)
@@ -92,7 +116,8 @@ func GetClient(ctx context.Context) (*http.Client, error) {
 		return config.Client(ctx, token), nil
 	}
 
-	// Fall back to token from file
+	// Fall back to token from file (CLI mode only)
+	tokenPath := filepath.Join(GetCredentialsPath(), TokenFile)
 	token, err := tokenFromFile(tokenPath)
 	if err != nil {
 		token, err = getTokenFromWeb(config)
