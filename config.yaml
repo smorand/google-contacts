@@ -11,8 +11,8 @@ prefix: scmgcontacts
 # Project name
 project_name: google-contacts-mcp
 
-# Environment: dev, staging, prod, test
-env: prod
+# Environment: dev, stg, uat, prd
+env: prd
 
 # Human-readable project description
 description: Google Contacts MCP Server - Cloud Run deployment with OAuth API Key management
@@ -28,9 +28,9 @@ providers:
 # GCP CONFIGURATION
 # ============================================
 gcp:
-  # GCP Project ID (will be configured per environment)
-  # This placeholder will be replaced with actual project ID
-  project_id: CONFIGURE_YOUR_GCP_PROJECT_ID
+  # GCP Project ID - Replace with your actual GCP project ID
+  # Must exist in Google Cloud before deployment
+  project_id: scmgcontacts-mcp-prd
 
   # Location (multi-region for Firestore)
   location: europe-west1
