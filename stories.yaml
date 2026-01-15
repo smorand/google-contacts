@@ -1890,7 +1890,7 @@
   - make plan shows Firestore database creation
   - Database created in correct location
   - CLAUDE.md documents Firestore structure
-  passes: false
+  passes: true
 - id: US-00034
   title: 'terraform: Secret Manager for OAuth credentials'
   priority: 34
