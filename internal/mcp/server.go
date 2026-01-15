@@ -15,6 +15,7 @@ import (
 
 	"cloud.google.com/go/firestore"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"golang.org/x/oauth2"
 
 	"google-contacts/internal/contacts"
 	"google-contacts/pkg/auth"
@@ -41,11 +42,14 @@ type Server struct {
 }
 
 // APIKeyDocument represents the structure stored in Firestore for API keys.
-// Collection: api_keys, Document ID: the API key itself
+// Collection: api_keys, Document ID: the API key itself (UUID v4)
 type APIKeyDocument struct {
 	RefreshToken string `firestore:"refresh_token"`
+	AccessToken  string `firestore:"access_token,omitempty"`
+	TokenExpiry  string `firestore:"token_expiry,omitempty"`
 	UserEmail    string `firestore:"user_email,omitempty"`
 	CreatedAt    string `firestore:"created_at,omitempty"`
+	LastUsed     string `firestore:"last_used,omitempty"`
 	Description  string `firestore:"description,omitempty"`
 }
 
@@ -124,10 +128,56 @@ func (s *Server) validateAPIKey(ctx context.Context, apiKey string) (refreshToke
 			return "", false, nil
 		}
 
+		// Update last_used timestamp asynchronously (non-blocking)
+		go s.UpdateLastUsed(context.Background(), apiKey)
+
 		return keyDoc.RefreshToken, true, nil
 	}
 
 	return "", false, nil
+}
+
+// StoreAPIKey stores a new API key with its associated OAuth tokens in Firestore.
+func (s *Server) StoreAPIKey(ctx context.Context, apiKey string, token *oauth2.Token, userEmail string) error {
+	if s.firestoreClient == nil {
+		return fmt.Errorf("Firestore client not initialized")
+	}
+
+	now := time.Now().UTC().Format(time.RFC3339)
+
+	doc := APIKeyDocument{
+		RefreshToken: token.RefreshToken,
+		AccessToken:  token.AccessToken,
+		TokenExpiry:  token.Expiry.UTC().Format(time.RFC3339),
+		UserEmail:    userEmail,
+		CreatedAt:    now,
+		LastUsed:     now,
+	}
+
+	_, err := s.firestoreClient.Collection("api_keys").Doc(apiKey).Set(ctx, doc)
+	if err != nil {
+		return fmt.Errorf("failed to store API key in Firestore: %w", err)
+	}
+
+	log.Printf("API key stored for user: %s", userEmail)
+	return nil
+}
+
+// UpdateLastUsed updates the last_used timestamp for an API key.
+func (s *Server) UpdateLastUsed(ctx context.Context, apiKey string) error {
+	if s.firestoreClient == nil {
+		return nil // Silently ignore if Firestore not configured
+	}
+
+	_, err := s.firestoreClient.Collection("api_keys").Doc(apiKey).Update(ctx, []firestore.Update{
+		{Path: "last_used", Value: time.Now().UTC().Format(time.RFC3339)},
+	})
+	if err != nil {
+		log.Printf("Failed to update last_used for API key: %v", err)
+		return err
+	}
+
+	return nil
 }
 
 // extractBearerToken extracts the API key from the Authorization header.

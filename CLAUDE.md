@@ -371,10 +371,13 @@ Document ID: The API key itself (e.g., `user-abc-key-123`)
 ```go
 // APIKeyDocument structure in Firestore
 type APIKeyDocument struct {
-    RefreshToken string `firestore:"refresh_token"`    // Required: OAuth refresh token
-    UserEmail    string `firestore:"user_email"`       // Optional: user identifier
-    CreatedAt    string `firestore:"created_at"`       // Optional: creation timestamp
-    Description  string `firestore:"description"`      // Optional: key description
+    RefreshToken string `firestore:"refresh_token"`      // Required: OAuth refresh token
+    AccessToken  string `firestore:"access_token"`       // Optional: cached access token
+    TokenExpiry  string `firestore:"token_expiry"`       // Optional: access token expiry (ISO 8601)
+    UserEmail    string `firestore:"user_email"`         // Optional: user identifier
+    CreatedAt    string `firestore:"created_at"`         // Optional: creation timestamp
+    LastUsed     string `firestore:"last_used"`          // Optional: last API usage timestamp
+    Description  string `firestore:"description"`        // Optional: key description
 }
 ```
 
@@ -383,8 +386,11 @@ type APIKeyDocument struct {
 ```json
 {
   "refresh_token": "1//0gxxxxxx-xxxxxxxx",
+  "access_token": "ya29.xxxxx",
+  "token_expiry": "2026-01-15T11:00:00Z",
   "user_email": "user@example.com",
   "created_at": "2026-01-15T10:00:00Z",
+  "last_used": "2026-01-15T10:30:00Z",
   "description": "MCP access for user's AI assistant"
 }
 ```
@@ -396,8 +402,28 @@ When a request arrives with a valid API key from Firestore, the server injects t
 1. Client sends request with `Authorization: Bearer <api_key>`
 2. Server looks up `api_keys/<api_key>` document in Firestore
 3. If found, extracts `refresh_token` from document
-4. Injects token into context via `auth.WithRefreshToken(ctx, token)`
-5. People API service uses this token for authenticated requests
+4. Updates `last_used` timestamp asynchronously
+5. Injects token into context via `auth.WithRefreshToken(ctx, token)`
+6. People API service uses this token for authenticated requests
+
+**API Key Generation (internal/mcp/auth.go):**
+
+```go
+// GenerateAPIKey generates a new UUID v4 API key.
+func GenerateAPIKey() string {
+    return uuid.New().String()
+}
+```
+
+**API Key Storage (internal/mcp/server.go):**
+
+```go
+// StoreAPIKey stores a new API key with its associated OAuth tokens in Firestore.
+func (s *Server) StoreAPIKey(ctx context.Context, apiKey string, token *oauth2.Token, userEmail string) error
+
+// UpdateLastUsed updates the last_used timestamp for an API key.
+func (s *Server) UpdateLastUsed(ctx context.Context, apiKey string) error
+```
 
 #### Context Token Injection
 
@@ -1204,15 +1230,21 @@ The `api_keys` collection stores API key documents for MCP authentication. This 
 | Field | Type | Description | Required |
 |-------|------|-------------|----------|
 | `refresh_token` | string | OAuth refresh token for Google API access | Yes |
+| `access_token` | string | Cached OAuth access token | No |
+| `token_expiry` | string | Access token expiry (ISO 8601) | No |
 | `user_email` | string | Email address from OAuth flow | No |
 | `created_at` | string | ISO 8601 timestamp when key was created | No |
+| `last_used` | string | ISO 8601 timestamp of last API usage | No |
 | `description` | string | Optional description for the API key | No |
 
 **Example Document:**
 ```json
 {
   "refresh_token": "1//0gxxxxxx-xxxxxxxx",
+  "access_token": "ya29.xxxxx",
+  "token_expiry": "2026-01-15T11:00:00Z",
   "user_email": "user@example.com",
+  "last_used": "2026-01-15T10:30:00Z",
   "created_at": "2026-01-15T10:00:00Z",
   "description": "MCP access for Claude AI assistant"
 }
@@ -1228,9 +1260,12 @@ The `api_keys` collection stores API key documents for MCP authentication. This 
 ```go
 type APIKeyDocument struct {
     RefreshToken string `firestore:"refresh_token"`
-    UserEmail    string `firestore:"user_email"`
-    CreatedAt    string `firestore:"created_at"`
-    Description  string `firestore:"description"`
+    AccessToken  string `firestore:"access_token,omitempty"`
+    TokenExpiry  string `firestore:"token_expiry,omitempty"`
+    UserEmail    string `firestore:"user_email,omitempty"`
+    CreatedAt    string `firestore:"created_at,omitempty"`
+    LastUsed     string `firestore:"last_used,omitempty"`
+    Description  string `firestore:"description,omitempty"`
 }
 ```
 
