@@ -9,12 +9,15 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
+	"cloud.google.com/go/firestore"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"google-contacts/internal/contacts"
+	"google-contacts/pkg/auth"
 )
 
 // Config holds the MCP server configuration.
@@ -27,9 +30,19 @@ type Config struct {
 
 // Server wraps the MCP server and HTTP server.
 type Server struct {
-	config     *Config
-	mcpServer  *mcp.Server
-	httpServer *http.Server
+	config          *Config
+	mcpServer       *mcp.Server
+	httpServer      *http.Server
+	firestoreClient *firestore.Client
+}
+
+// APIKeyDocument represents the structure stored in Firestore for API keys.
+// Collection: api_keys, Document ID: the API key itself
+type APIKeyDocument struct {
+	RefreshToken string `firestore:"refresh_token"`
+	UserEmail    string `firestore:"user_email,omitempty"`
+	CreatedAt    string `firestore:"created_at,omitempty"`
+	Description  string `firestore:"description,omitempty"`
 }
 
 // NewServer creates a new MCP server with the given configuration.
@@ -44,6 +57,120 @@ func NewServer(cfg *Config) *Server {
 		config:    cfg,
 		mcpServer: mcpServer,
 	}
+}
+
+// initFirestore initializes the Firestore client if a project is configured.
+func (s *Server) initFirestore(ctx context.Context) error {
+	if s.config.FirestoreProject == "" {
+		return nil
+	}
+
+	client, err := firestore.NewClient(ctx, s.config.FirestoreProject)
+	if err != nil {
+		return fmt.Errorf("failed to create Firestore client: %w", err)
+	}
+	s.firestoreClient = client
+	log.Printf("Firestore client initialized for project: %s", s.config.FirestoreProject)
+	return nil
+}
+
+// validateAPIKey validates an API key and returns the associated refresh token.
+// Returns:
+// - refreshToken: the OAuth refresh token if valid
+// - valid: true if the API key is valid
+// - err: error if validation failed unexpectedly
+func (s *Server) validateAPIKey(ctx context.Context, apiKey string) (refreshToken string, valid bool, err error) {
+	// No authentication configured - allow unauthenticated access
+	if s.config.APIKey == "" && s.config.FirestoreProject == "" {
+		return "", true, nil
+	}
+
+	// API key is required when auth is configured
+	if apiKey == "" {
+		return "", false, nil
+	}
+
+	// Check static API key first (for local development)
+	if s.config.APIKey != "" {
+		if apiKey == s.config.APIKey {
+			// Static API key is valid, no refresh token (will use local token file)
+			return "", true, nil
+		}
+		// Static key configured but doesn't match
+		return "", false, nil
+	}
+
+	// Check Firestore for API key validation
+	if s.firestoreClient != nil {
+		doc, err := s.firestoreClient.Collection("api_keys").Doc(apiKey).Get(ctx)
+		if err != nil {
+			// Document not found or other error - treat as invalid key
+			log.Printf("API key validation failed: %v", err)
+			return "", false, nil
+		}
+
+		var keyDoc APIKeyDocument
+		if err := doc.DataTo(&keyDoc); err != nil {
+			log.Printf("Failed to parse API key document: %v", err)
+			return "", false, nil
+		}
+
+		if keyDoc.RefreshToken == "" {
+			log.Printf("API key document has no refresh token")
+			return "", false, nil
+		}
+
+		return keyDoc.RefreshToken, true, nil
+	}
+
+	return "", false, nil
+}
+
+// extractBearerToken extracts the API key from the Authorization header.
+// Expected format: "Bearer <api_key>"
+func extractBearerToken(r *http.Request) string {
+	authHeader := r.Header.Get("Authorization")
+	if authHeader == "" {
+		return ""
+	}
+
+	const bearerPrefix = "Bearer "
+	if !strings.HasPrefix(authHeader, bearerPrefix) {
+		return ""
+	}
+
+	return strings.TrimPrefix(authHeader, bearerPrefix)
+}
+
+// authMiddleware wraps an HTTP handler with API key authentication.
+func (s *Server) authMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+
+		// Extract API key from Authorization header
+		apiKey := extractBearerToken(r)
+
+		// Validate the API key
+		refreshToken, valid, err := s.validateAPIKey(ctx, apiKey)
+		if err != nil {
+			log.Printf("API key validation error: %v", err)
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
+		}
+
+		if !valid {
+			http.Error(w, "Unauthorized: invalid or missing API key", http.StatusUnauthorized)
+			return
+		}
+
+		// If we have a refresh token from Firestore, inject it into context
+		if refreshToken != "" {
+			ctx = auth.WithRefreshToken(ctx, refreshToken)
+			r = r.WithContext(ctx)
+		}
+
+		next.ServeHTTP(w, r)
+	})
 }
 
 // PhoneInput represents a phone number with type for MCP tools.
@@ -627,15 +754,37 @@ func (s *Server) handleDeleteContact(ctx context.Context, req *mcp.CallToolReque
 
 // Run starts the HTTP server and blocks until shutdown.
 func (s *Server) Run(ctx context.Context) error {
+	// Initialize Firestore client if configured
+	if err := s.initFirestore(ctx); err != nil {
+		return err
+	}
+	defer func() {
+		if s.firestoreClient != nil {
+			s.firestoreClient.Close()
+		}
+	}()
+
 	// Register tools
 	s.RegisterTools()
 
 	// Create the streamable HTTP handler
-	handler := mcp.NewStreamableHTTPHandler(func(r *http.Request) *mcp.Server {
+	mcpHandler := mcp.NewStreamableHTTPHandler(func(r *http.Request) *mcp.Server {
 		return s.mcpServer
 	}, &mcp.StreamableHTTPOptions{
 		Stateless: false, // Enable session tracking
 	})
+
+	// Wrap with authentication middleware
+	handler := s.authMiddleware(mcpHandler)
+
+	// Log authentication mode
+	if s.config.APIKey != "" {
+		log.Println("Authentication mode: static API key")
+	} else if s.config.FirestoreProject != "" {
+		log.Println("Authentication mode: Firestore API keys")
+	} else {
+		log.Println("Authentication mode: disabled (no API key or Firestore project configured)")
+	}
 
 	// Create HTTP server
 	addr := fmt.Sprintf("%s:%d", s.config.Host, s.config.Port)
