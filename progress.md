@@ -1717,3 +1717,41 @@ Stories should be implemented in order:
 **Remaining issues:** None
 
 ---
+
+## 2026-01-15 - US-00031 - terraform: Initialize infrastructure project structure
+
+**Status:** Success
+
+**What was implemented:**
+- Created config.yaml at project root with GCP configuration
+- Used terraform skill to initialize init/ and iac/ directories
+- init/ contains state backend, service accounts, and API enablement templates
+- iac/ contains provider template and local.tf for main infrastructure
+- Updated Makefile with terraform targets (init-plan, init-deploy, plan, deploy, etc.)
+- Updated .gitignore with terraform exclusion patterns
+- Added Terraform infrastructure section to CLAUDE.md
+
+**Files changed:**
+- `config.yaml` - New terraform configuration file with prefix, project_id, location, services, resources
+- `init/provider.tf` - GCP provider configuration for initialization
+- `init/local.tf` - Config loader for init resources
+- `init/state-backend.tf` - GCS bucket for terraform state
+- `init/service-accounts.tf` - Custom service accounts (never use defaults)
+- `init/services.tf` - API enablement
+- `iac/provider.tf.template` - Provider template with backend placeholder
+- `iac/local.tf` - Config loader for main infrastructure
+- `iac/example-workload.tf` - Example resource file (to be replaced)
+- `Makefile` - Added 7 terraform targets (plan, deploy, undeploy, init-plan, init-deploy, init-destroy, update-backend)
+- `.gitignore` - Added terraform patterns (.terraform/, *.tfstate, etc.)
+- `CLAUDE.md` - Added Terraform Infrastructure section and updated project structure
+
+**Learnings:**
+- The terraform skill requires explicit --project-root parameter to work in the correct directory
+- config.yaml validation requires env to be one of: dev, stg, uat, prd (not prod, staging, etc.)
+- GCP project_id must be 6-30 characters, lowercase letters, digits, hyphens, start with letter, end with letter/digit
+- The terraform skill handles Makefile merging (adds targets to existing Makefile)
+- The skill auto-updates .gitignore with comprehensive terraform exclusion patterns
+
+**Remaining issues:** None
+
+---
