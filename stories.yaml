@@ -1868,7 +1868,7 @@
   - Service account has correct IAM roles
   - Environment variables configured correctly
   - Artifact Registry repository created
-  passes: false
+  passes: true
 - id: US-00033
   title: 'terraform: Firestore database and indexes'
   priority: 33

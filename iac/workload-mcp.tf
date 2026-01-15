@@ -1,0 +1,171 @@
+# MCP Server Workload: Cloud Run service with Artifact Registry
+# This file contains all resources for the Google Contacts MCP server deployment
+#
+# Resources:
+# - Artifact Registry repository for container images
+# - Cloud Run service for MCP server
+# - Service account IAM permissions (Firestore, Secret Manager)
+# - IAM binding for unauthenticated access
+
+# ============================================
+# LOCALS
+# ============================================
+
+locals {
+  # MCP service configuration from config.yaml
+  mcp_name = lookup(local.cloud_run_config, "name", "google-contacts-mcp")
+
+  # Artifact Registry configuration
+  artifact_registry_config = lookup(local.gcp_resources, "artifact_registry", {})
+  artifact_registry_name   = lookup(local.artifact_registry_config, "name", "google-contacts")
+  artifact_registry_format = lookup(local.artifact_registry_config, "format", "DOCKER")
+
+  # Docker image (uses Artifact Registry)
+  mcp_image = "${local.cloud_run_region}-docker.pkg.dev/${local.project_id}/${google_artifact_registry_repository.mcp.name}/${local.mcp_name}:latest"
+
+  # Resource limits from cloud_run config
+  mcp_cpu           = lookup(local.cloud_run_config, "cpu", "1")
+  mcp_memory        = lookup(local.cloud_run_config, "memory", "256Mi")
+  mcp_min_instances = lookup(local.cloud_run_config, "min_instances", 0)
+  mcp_max_instances = lookup(local.cloud_run_config, "max_instances", 3)
+
+  # Access configuration
+  allow_unauthenticated = lookup(local.cloud_run_config, "allow_unauthenticated", true)
+
+  # Service account email from init module (referenced by name)
+  mcp_service_account = "${local.prefix}-cloudrun-${local.env}@${local.project_id}.iam.gserviceaccount.com"
+}
+
+# ============================================
+# ARTIFACT REGISTRY
+# ============================================
+
+resource "google_artifact_registry_repository" "mcp" {
+  repository_id = local.artifact_registry_name
+  location      = local.cloud_run_region
+  format        = local.artifact_registry_format
+  description   = "Docker repository for Google Contacts MCP server"
+
+  labels = {
+    environment = local.env
+    managed_by  = "terraform"
+  }
+}
+
+# ============================================
+# CLOUD RUN SERVICE
+# ============================================
+
+resource "google_cloud_run_v2_service" "mcp" {
+  name     = local.mcp_name
+  location = local.cloud_run_region
+  ingress  = "INGRESS_TRAFFIC_ALL"
+
+  template {
+    service_account = local.mcp_service_account
+
+    scaling {
+      min_instance_count = local.mcp_min_instances
+      max_instance_count = local.mcp_max_instances
+    }
+
+    containers {
+      image = local.mcp_image
+
+      resources {
+        limits = {
+          cpu    = local.mcp_cpu
+          memory = local.mcp_memory
+        }
+        cpu_idle = true # Allow CPU throttling when idle for cost savings
+      }
+
+      # Port configuration
+      ports {
+        container_port = 8080
+      }
+
+      # Environment variables for MCP server
+      env {
+        name  = "FIRESTORE_PROJECT"
+        value = local.project_id
+      }
+
+      env {
+        name  = "PORT"
+        value = "8080"
+      }
+
+      env {
+        name  = "ENVIRONMENT"
+        value = local.env
+      }
+
+      env {
+        name  = "PROJECT_ID"
+        value = local.project_id
+      }
+    }
+  }
+
+  # Ensure traffic is routed to latest revision
+  traffic {
+    type    = "TRAFFIC_TARGET_ALLOCATION_TYPE_LATEST"
+    percent = 100
+  }
+
+  depends_on = [
+    google_artifact_registry_repository.mcp
+  ]
+}
+
+# ============================================
+# SERVICE ACCOUNT PERMISSIONS
+# ============================================
+
+# Grant Firestore access to Cloud Run service account
+resource "google_project_iam_member" "mcp_firestore" {
+  project = local.project_id
+  role    = "roles/datastore.user"
+  member  = "serviceAccount:${local.mcp_service_account}"
+}
+
+# Grant Secret Manager access to Cloud Run service account
+resource "google_project_iam_member" "mcp_secretmanager" {
+  project = local.project_id
+  role    = "roles/secretmanager.secretAccessor"
+  member  = "serviceAccount:${local.mcp_service_account}"
+}
+
+# ============================================
+# IAM BINDING FOR PUBLIC ACCESS
+# ============================================
+
+# Allow unauthenticated access to Cloud Run service (API key protection at app level)
+resource "google_cloud_run_v2_service_iam_member" "mcp_public" {
+  count    = local.allow_unauthenticated ? 1 : 0
+  project  = local.project_id
+  location = google_cloud_run_v2_service.mcp.location
+  name     = google_cloud_run_v2_service.mcp.name
+  role     = "roles/run.invoker"
+  member   = "allUsers"
+}
+
+# ============================================
+# OUTPUTS
+# ============================================
+
+output "mcp_url" {
+  description = "MCP server URL"
+  value       = google_cloud_run_v2_service.mcp.uri
+}
+
+output "mcp_service_account" {
+  description = "MCP service account email"
+  value       = local.mcp_service_account
+}
+
+output "artifact_registry_url" {
+  description = "Artifact Registry repository URL"
+  value       = "${local.cloud_run_region}-docker.pkg.dev/${local.project_id}/${google_artifact_registry_repository.mcp.name}"
+}
