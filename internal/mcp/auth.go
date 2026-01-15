@@ -6,11 +6,13 @@ package mcp
 import (
 	"context"
 	"crypto/rand"
+	"embed"
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
+	"html/template"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"sync"
 	"time"
@@ -26,6 +28,20 @@ import (
 
 	"google-contacts/pkg/auth"
 )
+
+//go:embed templates/success.html
+var templatesFS embed.FS
+
+// successPageTemplate holds the parsed success page template.
+var successPageTemplate *template.Template
+
+func init() {
+	var err error
+	successPageTemplate, err = template.ParseFS(templatesFS, "templates/success.html")
+	if err != nil {
+		panic(fmt.Sprintf("failed to parse success template: %v", err))
+	}
+}
 
 // OAuthScopes contains all OAuth2 scopes for Gmail and People APIs.
 // Matches the scopes in pkg/auth/auth.go for consistency.
@@ -342,9 +358,8 @@ func (h *AuthHandler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Store token and generate API key using server's Firestore client
-	// This will be implemented in US-00037
-	// For now, we'll return a success page with the token info
-	h.serveCallbackResponse(w, token, userEmail)
+	// Then redirect to success page
+	h.serveCallbackResponse(w, r, token, userEmail)
 }
 
 // getUserEmail fetches the user's email address using the OAuth token.
@@ -378,8 +393,8 @@ func (h *AuthHandler) getUserEmail(ctx context.Context, config *oauth2.Config, t
 	return "", fmt.Errorf("no email address found")
 }
 
-// serveCallbackResponse generates an API key, stores it with the token, and responds.
-func (h *AuthHandler) serveCallbackResponse(w http.ResponseWriter, token *oauth2.Token, userEmail string) {
+// serveCallbackResponse generates an API key, stores it with the token, and redirects to success page.
+func (h *AuthHandler) serveCallbackResponse(w http.ResponseWriter, r *http.Request, token *oauth2.Token, userEmail string) {
 	ctx := context.Background()
 
 	// Check if Firestore client is available
@@ -402,22 +417,58 @@ func (h *AuthHandler) serveCallbackResponse(w http.ResponseWriter, token *oauth2
 
 	log.Printf("API key generated and stored for user: %s", userEmail)
 
-	// Return success response with the API key
-	response := map[string]interface{}{
-		"success":    true,
-		"message":    "OAuth authentication successful",
-		"api_key":    apiKey,
-		"user_email": userEmail,
-		"server_url": h.baseURL,
-		"usage": map[string]string{
-			"header":  "Authorization: Bearer " + apiKey,
-			"example": fmt.Sprintf("curl -H 'Authorization: Bearer %s' %s/", apiKey, h.baseURL),
-		},
+	// Redirect to success page with API key in query parameters
+	successURL := "/auth/success?key=" + url.QueryEscape(apiKey)
+	if userEmail != "" {
+		successURL += "&email=" + url.QueryEscape(userEmail)
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(response); err != nil {
-		log.Printf("Failed to encode response: %v", err)
+	http.Redirect(w, r, successURL, http.StatusFound)
+}
+
+// SuccessPageData holds the data for rendering the success page template.
+type SuccessPageData struct {
+	APIKey    string
+	UserEmail string
+	ServerURL string
+}
+
+// HandleSuccess renders the success page with the API key.
+// GET /auth/success?key=xxx&email=xxx
+func (h *AuthHandler) HandleSuccess(w http.ResponseWriter, r *http.Request) {
+	// Get API key from query parameter
+	apiKey := r.URL.Query().Get("key")
+	if apiKey == "" {
+		http.Error(w, "Missing API key parameter", http.StatusBadRequest)
+		return
+	}
+
+	// Get optional email parameter
+	userEmail := r.URL.Query().Get("email")
+
+	// Determine server URL for display
+	serverURL := h.baseURL
+	if serverURL == "" {
+		// Construct from request if not configured
+		scheme := "https"
+		if r.TLS == nil {
+			scheme = "http"
+		}
+		serverURL = scheme + "://" + r.Host
+	}
+
+	// Prepare template data
+	data := SuccessPageData{
+		APIKey:    apiKey,
+		UserEmail: userEmail,
+		ServerURL: serverURL,
+	}
+
+	// Render template
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err := successPageTemplate.Execute(w, data); err != nil {
+		log.Printf("Failed to render success template: %v", err)
+		http.Error(w, "Failed to render page", http.StatusInternalServerError)
 	}
 }
 
@@ -439,6 +490,7 @@ func truncateToken(token string) string {
 func (h *AuthHandler) SetupRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/auth", h.HandleAuth)
 	mux.HandleFunc("/auth/callback", h.HandleCallback)
+	mux.HandleFunc("/auth/success", h.HandleSuccess)
 }
 
 // GetBaseURL returns the configured base URL.

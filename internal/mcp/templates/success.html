@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Google Contacts MCP - Authentication Successful</title>
+  <style>
+    :root {
+      --primary-color: #4285f4;
+      --success-color: #34a853;
+      --warning-color: #ea4335;
+      --background: #f8f9fa;
+      --card-background: #ffffff;
+      --text-color: #202124;
+      --text-secondary: #5f6368;
+      --border-color: #dadce0;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background: var(--background);
+      color: var(--text-color);
+      line-height: 1.6;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px 20px;
+    }
+
+    .container {
+      max-width: 700px;
+      width: 100%;
+    }
+
+    .card {
+      background: var(--card-background);
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      padding: 32px;
+      margin-bottom: 24px;
+    }
+
+    h1 {
+      font-size: 28px;
+      font-weight: 500;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .success-icon {
+      width: 36px;
+      height: 36px;
+      background: var(--success-color);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-size: 20px;
+    }
+
+    .subtitle {
+      color: var(--text-secondary);
+      margin-bottom: 24px;
+    }
+
+    .api-key-section {
+      margin: 24px 0;
+    }
+
+    .api-key-label {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      margin-bottom: 8px;
+    }
+
+    .api-key-box {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: #f1f3f4;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 16px;
+      position: relative;
+    }
+
+    .api-key-value {
+      font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+      font-size: 15px;
+      word-break: break-all;
+      flex: 1;
+      user-select: all;
+    }
+
+    .copy-button {
+      background: var(--primary-color);
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      white-space: nowrap;
+    }
+
+    .copy-button:hover {
+      background: #3367d6;
+    }
+
+    .copy-button.copied {
+      background: var(--success-color);
+    }
+
+    h2 {
+      font-size: 18px;
+      font-weight: 500;
+      margin: 24px 0 12px 0;
+    }
+
+    .user-info {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 16px;
+      background: #e8f5e9;
+      border-radius: 8px;
+      margin-bottom: 24px;
+    }
+
+    .user-icon {
+      width: 32px;
+      height: 32px;
+      background: var(--success-color);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-size: 16px;
+    }
+
+    .user-email {
+      font-weight: 500;
+    }
+
+    .config-example {
+      background: #1e1e1e;
+      color: #d4d4d4;
+      border-radius: 8px;
+      padding: 20px;
+      overflow-x: auto;
+      font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .config-example .key {
+      color: #9cdcfe;
+    }
+
+    .config-example .string {
+      color: #ce9178;
+    }
+
+    .config-example .comment {
+      color: #6a9955;
+    }
+
+    .warning {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 16px;
+      background: #fff8e1;
+      border: 1px solid #ffe082;
+      border-radius: 8px;
+      margin-top: 24px;
+    }
+
+    .warning-icon {
+      font-size: 20px;
+      flex-shrink: 0;
+    }
+
+    .warning-text {
+      font-size: 14px;
+      color: #5d4037;
+    }
+
+    .footer {
+      text-align: center;
+      color: var(--text-secondary);
+      font-size: 13px;
+      margin-top: 16px;
+    }
+
+    .footer a {
+      color: var(--primary-color);
+      text-decoration: none;
+    }
+
+    .footer a:hover {
+      text-decoration: underline;
+    }
+
+    @media (max-width: 600px) {
+      body {
+        padding: 20px 12px;
+      }
+
+      .card {
+        padding: 20px;
+      }
+
+      h1 {
+        font-size: 22px;
+      }
+
+      .api-key-box {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .copy-button {
+        justify-content: center;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="card">
+      <h1>
+        <span class="success-icon">&#10003;</span>
+        Authentication Successful!
+      </h1>
+      <p class="subtitle">Your API Key has been generated. Use it to authenticate with the Google Contacts MCP server.</p>
+
+      {{if .UserEmail}}
+      <div class="user-info">
+        <span class="user-icon">&#9679;</span>
+        <span>Connected as: <strong class="user-email">{{.UserEmail}}</strong></span>
+      </div>
+      {{end}}
+
+      <div class="api-key-section">
+        <div class="api-key-label">Your API Key</div>
+        <div class="api-key-box">
+          <code class="api-key-value" id="api-key">{{.APIKey}}</code>
+          <button class="copy-button" onclick="copyToClipboard()" id="copy-btn">
+            <span id="copy-icon">&#128203;</span>
+            <span id="copy-text">Copy</span>
+          </button>
+        </div>
+      </div>
+
+      <h2>How to use this API Key</h2>
+      <p style="margin-bottom: 12px; color: var(--text-secondary);">Add this configuration to your MCP client:</p>
+
+      <pre class="config-example"><span class="comment">// MCP client configuration (e.g., Claude Desktop)</span>
+{
+  <span class="key">"mcpServers"</span>: {
+    <span class="key">"google-contacts"</span>: {
+      <span class="key">"url"</span>: <span class="string">"{{.ServerURL}}"</span>,
+      <span class="key">"transport"</span>: <span class="string">"streamable-http"</span>,
+      <span class="key">"headers"</span>: {
+        <span class="key">"Authorization"</span>: <span class="string">"Bearer {{.APIKey}}"</span>
+      }
+    }
+  }
+}</pre>
+
+      <div class="warning">
+        <span class="warning-icon">&#9888;</span>
+        <div class="warning-text">
+          <strong>Security Notice:</strong> Store this API Key securely. It provides access to your Google Contacts.
+          Do not share it publicly or commit it to version control.
+        </div>
+      </div>
+    </div>
+
+    <p class="footer">
+      Google Contacts MCP Server &middot;
+      <a href="https://github.com/smorand/google-contacts" target="_blank">GitHub</a>
+    </p>
+  </div>
+
+  <script>
+    function copyToClipboard() {
+      const apiKey = document.getElementById('api-key').innerText;
+      const btn = document.getElementById('copy-btn');
+      const copyText = document.getElementById('copy-text');
+      const copyIcon = document.getElementById('copy-icon');
+
+      navigator.clipboard.writeText(apiKey).then(function() {
+        // Success feedback
+        btn.classList.add('copied');
+        copyText.innerText = 'Copied!';
+        copyIcon.innerHTML = '&#10003;';
+
+        // Reset after 2 seconds
+        setTimeout(function() {
+          btn.classList.remove('copied');
+          copyText.innerText = 'Copy';
+          copyIcon.innerHTML = '&#128203;';
+        }, 2000);
+      }).catch(function(err) {
+        console.error('Failed to copy: ', err);
+        alert('Failed to copy API key. Please select and copy manually.');
+      });
+    }
+
+    // Auto-select API key on click for easy manual copying
+    document.getElementById('api-key').addEventListener('click', function() {
+      const range = document.createRange();
+      range.selectNodeContents(this);
+      const selection = window.getSelection();
+      selection.removeAllRanges();
+      selection.addRange(range);
+    });
+  </script>
+</body>
+</html>

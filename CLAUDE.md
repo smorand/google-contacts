@@ -306,7 +306,12 @@ The project includes an MCP (Model Context Protocol) server that enables AI assi
 
 ```
 internal/mcp/
-└── server.go           # MCP server setup and HTTP handler
+├── server.go           # MCP server setup and HTTP handler
+├── auth.go             # OAuth2 authentication handlers
+├── templates/
+│   └── success.html    # OAuth success page template (embedded)
+├── server_test.go      # Server tests
+└── auth_test.go        # Auth handler tests
 ```
 
 ### Starting the Server
@@ -448,7 +453,8 @@ When running with Firestore integration (`--firestore-project`), the MCP server 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/auth` | GET | Start OAuth flow - redirects to Google consent |
-| `/auth/callback` | GET | OAuth callback - exchanges code for tokens |
+| `/auth/callback` | GET | OAuth callback - exchanges code for tokens, redirects to success page |
+| `/auth/success` | GET | Success page - displays API key with copy button and usage instructions |
 | `/health` | GET | Health check endpoint (always returns OK) |
 
 **Starting the server with OAuth endpoints:**
@@ -483,8 +489,9 @@ google-contacts mcp \
 4. User authorizes the application
 5. Google redirects to `/auth/callback` with authorization code
 6. Server exchanges code for access + refresh tokens
-7. Server stores refresh token in Firestore (US-00037)
-8. User receives API key for MCP access
+7. Server stores refresh token in Firestore with generated API key
+8. Server redirects to `/auth/success` page with API key in query params
+9. Success page displays API key with copy button and MCP client configuration example
 
 **OAuth Credentials:**
 
@@ -504,8 +511,19 @@ The server loads OAuth client credentials from (in priority order):
 See `internal/mcp/auth.go` for the AuthHandler implementation:
 - `NewAuthHandler()` - Creates handler with configuration
 - `HandleAuth()` - Initiates OAuth flow
-- `HandleCallback()` - Processes OAuth callback
+- `HandleCallback()` - Processes OAuth callback, redirects to success page
+- `HandleSuccess()` - Renders success page with API key display
 - `SetupRoutes()` - Registers HTTP routes
+
+**Success Page (`/auth/success`):**
+
+The success page is an HTML template embedded using Go's `embed` package:
+- Located at `internal/mcp/templates/success.html`
+- Displays the generated API key with a "Copy" button
+- Shows the user's email address (if available)
+- Provides MCP client configuration example (JSON format)
+- Includes a security warning about storing the API key securely
+- Responsive design for mobile and desktop
 
 ### Available Tools
 
