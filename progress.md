@@ -1875,3 +1875,37 @@ Stories should be implemented in order:
 **Remaining issues:** None
 
 ---
+
+## 2026-01-15 - US-00036 - OAuth authentication endpoint (/auth)
+
+**Status:** Success
+
+**What was implemented:**
+- OAuth2 authentication endpoints for API key generation workflow
+- `/auth` endpoint redirects to Google OAuth consent page with CSRF protection
+- `/auth/callback` exchanges authorization code for tokens and retrieves user email
+- Cryptographically secure state parameter stored in-memory with 10-minute TTL
+- OAuth credentials loaded from Secret Manager (primary) or local file (fallback)
+- Integration with MCP server via AuthHandler and SetupRoutes
+
+**Files changed:**
+- `internal/mcp/auth.go` - New AuthHandler implementation with HandleAuth and HandleCallback
+- `internal/mcp/auth_test.go` - Unit tests for state generation, validation, and callback handling
+- `internal/mcp/server.go` - Integration with auth handler and route setup
+- `internal/cli/cli.go` - CLI flags for OAuth configuration (--base-url, --secret-name, --credential-file)
+- `go.mod` / `go.sum` - Added cloud.google.com/go/secretmanager dependency
+- `CLAUDE.md` - Documentation for OAuth endpoints, CLI flags, and OAuth flow
+- `README.md` - MCP Server section with OAuth authentication documentation
+
+**Learnings:**
+- State parameter must be cryptographically random (32 bytes, base64 URL encoded)
+- Single-use state tokens prevent replay attacks
+- ApprovalForce option ensures refresh token is always returned (even for re-authorizations)
+- People API `people/me` endpoint retrieves authenticated user's email
+- Secret Manager path format: `projects/{project}/secrets/{name}/versions/latest`
+- In-memory state store with periodic cleanup goroutine is sufficient for single-instance deployments
+- OAuth config should be loaded lazily (on first request) to support optional OAuth functionality
+
+**Remaining issues:** None
+
+---

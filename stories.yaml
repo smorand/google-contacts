@@ -1979,7 +1979,7 @@
   - GET /auth/callback with invalid state returns error
   - GET /auth/callback with invalid code returns error
   - OAuth credentials read from Secret Manager
-  passes: false
+  passes: true
 - id: US-00037
   title: 'google-contacts: API Key generation and Firestore storage'
   priority: 37
