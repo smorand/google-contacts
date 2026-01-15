@@ -1115,6 +1115,62 @@ type APIKeyDocument struct {
 5. On each request, server looks up API key in Firestore
 6. If found, uses stored refresh_token for Google API authentication
 
+### Secret Manager (iac/secrets.tf)
+
+Secret Manager stores OAuth credentials for the MCP server.
+
+**Resources:**
+| Resource | Type | Description |
+|----------|------|-------------|
+| `google_secret_manager_secret.oauth_credentials` | Secret Manager Secret | Stores OAuth client credentials |
+
+**Configuration (from config.yaml):**
+```yaml
+secrets:
+  oauth_credentials: scm-pwd-oauth-creds
+```
+
+**Outputs:**
+- `oauth_secret_name` - Secret Manager secret name
+- `oauth_secret_id` - Secret Manager secret resource ID
+
+**Important:** The secret version (actual credentials) must be created MANUALLY after Terraform creates the secret. This keeps sensitive data out of Terraform state.
+
+**Manual Secret Creation:**
+```bash
+# After terraform creates the secret, add the credentials:
+gcloud secrets versions add scm-pwd-oauth-creds \
+  --data-file=$HOME/.credentials/scm-pwd.json \
+  --project=scmgcontacts-mcp-prd
+
+# Verify the secret version:
+gcloud secrets versions list scm-pwd-oauth-creds \
+  --project=scmgcontacts-mcp-prd
+
+# Check the secret exists:
+gcloud secrets describe scm-pwd-oauth-creds \
+  --project=scmgcontacts-mcp-prd
+```
+
+**Expected Secret Format:**
+The secret should contain JSON with OAuth client credentials:
+```json
+{
+  "installed": {
+    "client_id": "xxx.apps.googleusercontent.com",
+    "client_secret": "yyy",
+    "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+    "token_uri": "https://oauth2.googleapis.com/token",
+    ...
+  }
+}
+```
+
+**Security Notes:**
+- Secret version data is NOT stored in Terraform state (manual upload)
+- Cloud Run service account has `roles/secretmanager.secretAccessor` only (read-only)
+- Secrets can be rotated by adding new versions
+
 ### Adding New Resources
 
 1. Create a new `.tf` file in `iac/` named by feature
