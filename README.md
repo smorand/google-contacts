@@ -1,6 +1,6 @@
-# CONFIGURE_YOUR_GCP_PROJECT_ID
+# Google Contacts MCP Server
 
-Google Contacts MCP Server - Cloud Run deployment with OAuth API Key management
+A Go CLI tool and MCP (Model Context Protocol) server for managing Google Contacts via the People API v1. Enables AI assistants like Claude to interact with your Google Contacts remotely.
 
 ## Project Information
 
@@ -133,52 +133,170 @@ make cloud-run-deploy
 
 ## MCP Server
 
-The project includes an MCP (Model Context Protocol) server that enables AI assistants to manage Google Contacts remotely.
+The project includes an MCP (Model Context Protocol) server that enables AI assistants to manage Google Contacts remotely over HTTP.
+
+### Features
+
+- **Full contact management**: Create, search, show, update, and delete contacts
+- **Multi-user support**: Each API key maps to a different Google account
+- **OAuth authentication flow**: Generate API keys via browser-based OAuth
+- **Firestore-based key storage**: Production-ready persistent API key management
+- **Cloud Run deployment**: Scalable, serverless deployment
+
+### Quick Start (Local Development)
+
+```bash
+# Build the binary
+make build
+
+# Start MCP server on default port (8080)
+./bin/google-contacts-linux-amd64 mcp
+
+# Start with static API key (simple authentication)
+./bin/google-contacts-linux-amd64 mcp --api-key "your-secret-key"
+```
+
+### Production Deployment
+
+```bash
+# 1. Deploy infrastructure (Terraform)
+make plan     # Preview changes
+make deploy   # Deploy Cloud Run, Firestore, Secret Manager
+
+# 2. Upload OAuth credentials to Secret Manager
+gcloud secrets versions add scm-pwd-oauth-creds \
+  --data-file=$HOME/.credentials/scm-pwd.json \
+  --project=scmgcontacts-mcp-prd
+
+# 3. Build and deploy container
+make cloud-run-deploy
+```
 
 ### Starting the Server
 
 ```bash
-# Start on default port (8080)
+# Local development (no auth)
 google-contacts mcp
 
-# Start with API key authentication
+# Local development with static API key
 google-contacts mcp --api-key "your-secret-key"
 
-# Start with Firestore-based authentication (production)
+# Production with Firestore-based authentication
 google-contacts mcp \
   --firestore-project "my-gcp-project" \
   --secret-name "oauth-credentials" \
   --base-url "https://my-cloudrun-url.run.app"
+
+# Custom port and host
+google-contacts mcp --host 0.0.0.0 --port 9090
 ```
 
-### OAuth Authentication
+### MCP Client Configuration
 
-When running with Firestore integration, the server exposes OAuth endpoints:
+To use the MCP server with an AI assistant, add this to your MCP client configuration:
+
+```json
+{
+  "mcpServers": {
+    "google-contacts": {
+      "url": "https://your-cloudrun-url.run.app",
+      "transport": "streamable-http",
+      "headers": {
+        "Authorization": "Bearer <your-api-key>"
+      }
+    }
+  }
+}
+```
+
+For Claude Desktop, add this to your `claude_desktop_config.json`.
+
+### Getting an API Key
+
+1. Visit `https://your-cloudrun-url.run.app/auth` in your browser
+2. Complete the Google OAuth consent flow
+3. The success page displays your API key with a copy button
+4. Store the API key securely - it provides access to your Google Contacts
+
+### OAuth Authentication Endpoints
+
+When running with Firestore integration (`--firestore-project`):
 
 | Endpoint | Description |
 |----------|-------------|
-| `/auth` | Initiates OAuth flow - redirects to Google consent |
-| `/auth/callback` | OAuth callback - exchanges code for tokens |
-| `/health` | Health check endpoint |
+| `GET /auth` | Initiates OAuth flow - redirects to Google consent |
+| `GET /auth/callback` | OAuth callback - exchanges code for tokens |
+| `GET /auth/success` | Success page - displays generated API key |
+| `GET /health` | Health check endpoint (for Cloud Run) |
 
 **OAuth Flow:**
 1. User visits `/auth` endpoint
 2. Server generates CSRF protection state token
 3. Redirects to Google OAuth consent page
-4. Google redirects back to `/auth/callback` with authorization code
-5. Server exchanges code for refresh token
-6. API key is generated and stored in Firestore (upcoming feature)
+4. User authorizes the application
+5. Google redirects back to `/auth/callback` with authorization code
+6. Server exchanges code for refresh token
+7. Server generates UUID API key and stores with refresh token in Firestore
+8. Server redirects to `/auth/success` page displaying the API key
+9. User copies API key for use in MCP client configuration
 
-### GCP Configuration
+### Available MCP Tools
 
-The Makefile reads configuration from `config.yaml`:
-- Project ID from `gcp.project_id`
-- Region from `gcp.resources.cloud_run.region`
+| Tool | Description |
+|------|-------------|
+| `ping` | Test server connectivity |
+| `contacts_create` | Create a new contact (firstName, lastName, phones required) |
+| `contacts_search` | Search contacts by name, phone, email, or company |
+| `contacts_show` | Get full details of a contact by ID |
+| `contacts_update` | Update an existing contact (partial updates) |
+| `contacts_delete` | Delete a contact by ID |
 
-Override with environment variables:
-```bash
-GCP_PROJECT=my-project GCP_REGION=us-central1 make cloud-run-deploy
-```
+### Self-Hosting Guide
+
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/smorand/google-contacts
+   cd google-contacts
+   ```
+
+2. **Create a GCP project** (or use existing)
+   ```bash
+   gcloud projects create my-contacts-mcp --name="Contacts MCP"
+   gcloud config set project my-contacts-mcp
+   ```
+
+3. **Update config.yaml** with your project ID
+   ```yaml
+   gcp:
+     project_id: my-contacts-mcp
+   ```
+
+4. **Deploy infrastructure**
+   ```bash
+   make init-deploy  # Create state bucket, service accounts
+   make deploy       # Deploy Cloud Run, Firestore, etc.
+   ```
+
+5. **Create OAuth credentials** in Google Cloud Console
+   - Go to APIs & Services > Credentials
+   - Create OAuth client ID (Web application)
+   - Add authorized redirect URI: `https://YOUR-CLOUD-RUN-URL/auth/callback`
+   - Download JSON credentials
+
+6. **Upload credentials to Secret Manager**
+   ```bash
+   gcloud secrets versions add scm-pwd-oauth-creds \
+     --data-file=path/to/credentials.json
+   ```
+
+7. **Deploy the container**
+   ```bash
+   make cloud-run-deploy
+   ```
+
+8. **Test the deployment**
+   - Visit `https://YOUR-CLOUD-RUN-URL/auth` to get an API key
+   - Configure your MCP client with the API key
 
 ## Configuration
 
