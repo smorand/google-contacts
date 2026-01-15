@@ -1651,3 +1651,34 @@ Stories should be implemented in order:
 **Remaining issues:** None
 
 ---
+
+## 2026-01-15 - US-00029 - google-contacts: Implement MCP tools for contacts operations
+
+**Status:** Success
+
+**What was implemented:**
+- Implemented 5 MCP tools for contacts management in `internal/mcp/server.go`
+- `contacts_create` - Create new contact with firstName, lastName, phones (required), plus optional emails, addresses, company, position, notes, birthday
+- `contacts_search` - Search contacts by query (name, phone, email, company)
+- `contacts_show` - Get full contact details by ID
+- `contacts_update` - Update contact with partial updates (supports add/remove operations for phones, emails, addresses)
+- `contacts_delete` - Delete contact by ID with confirmation message
+- Defined type-safe input/output schemas with jsonschema tags for MCP schema generation
+- Tools call existing contacts.Service methods (no code duplication)
+- Proper validation for required fields (returns error for missing firstName, lastName, phones, query, contactId)
+
+**Files changed:**
+- `internal/mcp/server.go` - Added type definitions (PhoneInput, EmailInput, AddressInput, CreateInput/Output, SearchInput/Output, ShowInput/Output, UpdateInput/Output, DeleteInput/Output) and 5 handler methods (handleCreateContact, handleSearchContacts, handleShowContact, handleUpdateContact, handleDeleteContact)
+- `CLAUDE.md` - Updated Available Tools section with tool table and input/output type documentation, added curl examples for testing tools
+- `README.md` - Updated Available tools table with all 5 contact tools
+
+**Learnings:**
+- MCP Go SDK's mcp.AddTool uses generics to infer JSON schemas from struct field tags
+- jsonschema tags like `jsonschema:"required,description=..."` control schema generation
+- Tool handlers receive typed input structs and return typed output structs (third return value is error)
+- Struct embedding (e.g., UpdateOutput embedding ShowOutput) works for composing output types
+- Pointer fields in Go can distinguish "not provided" from "empty value" for partial updates
+
+**Remaining issues:** None
+
+---
