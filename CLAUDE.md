@@ -418,6 +418,35 @@ structured := contacts.ParseAddress("10 Rue Example, 75001 Paris")
 
 **Note**: The parsing is automatic in CreateContact and UpdateContact. The CLI address input is transparently parsed and stored with structured fields in Google Contacts.
 
+### Phone Number Normalization
+
+All phone numbers are automatically normalized to international format when creating or updating contacts.
+
+**Normalization rules:**
+- Phone starting with `0` (French local format): prepends `+33` and removes leading `0`
+- Phone starting with `00` (international prefix): replaces `00` with `+`
+- Phone already starting with `+`: keeps as-is
+- Removes spaces, dashes, dots, and parentheses for consistency
+
+**Examples:**
+| Input | Output |
+|-------|--------|
+| `0612345678` | `+33612345678` |
+| `06 12 34 56 78` | `+33612345678` |
+| `06.12.34.56.78` | `+33612345678` |
+| `+33612345678` | `+33612345678` |
+| `+1-555-123-4567` | `+15551234567` |
+| `0033612345678` | `+33612345678` |
+
+**Usage in code:**
+```go
+// Normalize a phone number
+normalized := contacts.NormalizePhoneNumber("06 12 34 56 78")
+// normalized = "+33612345678"
+```
+
+**Note**: Normalization is automatic in CreateContact and UpdateContact. Phone numbers provided via CLI or API are transparently normalized before being stored in Google Contacts. This ensures consistent phone number format and enables better search.
+
 ### Common PersonFields
 
 When calling People API methods, use `PersonFields()` to specify which fields to return:
