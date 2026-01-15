@@ -2168,5 +2168,5 @@
   - CLAUDE.md documents Terraform infrastructure
   - CLAUDE.md documents Firestore schema
   - Configuration examples are valid JSON
-  passes: false
+  passes: true
 
