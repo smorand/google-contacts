@@ -1807,7 +1807,7 @@
   - Firestore last_used timestamp updated on valid request
   - Refresh token injected into context
   - Service layer can retrieve refresh token from context
-  passes: false
+  passes: true
 - id: US-00031
   title: 'terraform: Initialize infrastructure project structure'
   priority: 31

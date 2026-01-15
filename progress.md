@@ -1682,3 +1682,38 @@ Stories should be implemented in order:
 **Remaining issues:** None
 
 ---
+
+## 2026-01-15 - US-00030 - google-contacts: MCP API Key middleware
+
+**Status:** Success
+
+**What was implemented:**
+- Implemented API Key authentication middleware for the MCP server in `internal/mcp/server.go`
+- Three authentication modes supported:
+  1. No auth (default): When neither `--api-key` nor `--firestore-project` is set, all requests allowed
+  2. Static API key: Via `--api-key` flag for local development
+  3. Firestore API keys: Via `--firestore-project` flag for multi-user production
+- API key extraction from `Authorization: Bearer <key>` header
+- Firestore collection structure: `api_keys/<api-key>` with `refresh_token`, `user_email`, `created_at`, `description` fields
+- Context injection for refresh token via `auth.WithRefreshToken(ctx, token)`
+- Modified `auth.GetClient()` to check for refresh token in context before falling back to file
+
+**Files changed:**
+- `internal/mcp/server.go` - Added Firestore client, APIKeyDocument struct, validateAPIKey(), extractBearerToken(), authMiddleware(), initFirestore() methods. Updated Run() to use middleware and initialize Firestore.
+- `internal/mcp/server_test.go` - New test file with unit tests for extractBearerToken, validateAPIKey (no auth, static key), and authMiddleware (no auth, valid/invalid keys)
+- `pkg/auth/auth.go` - Added WithRefreshToken(), GetRefreshTokenFromContext() functions and updated GetClient() to check context
+- `go.mod` - Added cloud.google.com/go/firestore dependency
+- `go.sum` - Updated dependencies
+- `CLAUDE.md` - Added comprehensive authentication documentation section after "Starting the Server"
+- `README.md` - Updated MCP Server section with authentication modes and usage examples
+
+**Learnings:**
+- MCP HTTP handler can be wrapped with standard Go middleware for authentication
+- Firestore client initialization should be done once at server startup with proper cleanup
+- Context value injection allows passing per-request data (refresh tokens) through the call stack
+- OAuth2 config.Client() handles token refresh automatically when given just a refresh token
+- Static analysis warnings (SA1012) remind us not to pass nil context even when code permits it
+
+**Remaining issues:** None
+
+---
