@@ -81,6 +81,25 @@ cd iac && terraform output
 
 ## Makefile Targets
 
+### Build and CLI Targets
+
+| Target | Description |
+|--------|-------------|
+| `make build` | Build CLI binary for current platform |
+| `make build-all` | Build for all platforms |
+| `make test` | Run unit tests |
+| `make install` | Install CLI to /usr/local/bin |
+
+### Docker and Cloud Run Targets
+
+| Target | Description |
+|--------|-------------|
+| `make docker-build` | Build container image locally |
+| `make docker-push` | Push container to Artifact Registry |
+| `make cloud-run-deploy` | Full deployment (build + push + deploy) |
+
+### Terraform Targets
+
 | Target | Description |
 |--------|-------------|
 | `make plan` | Plan main infrastructure changes |
@@ -89,6 +108,39 @@ cd iac && terraform output
 | `make init-plan` | Plan initialization (backend, state) |
 | `make init-deploy` | Deploy initialization |
 | `make init-destroy` | Destroy initialization (dangerous!) |
+
+## Docker Deployment
+
+The project includes a Dockerfile for containerized deployment:
+
+```bash
+# Build the container image
+make docker-build
+
+# Run locally
+docker run -p 8080:8080 google-contacts-mcp:latest
+
+# Deploy to Cloud Run (requires GCP credentials)
+make cloud-run-deploy
+```
+
+### Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `PORT` | Server listening port (default: 8080) |
+| `FIRESTORE_PROJECT` | GCP project for API key validation |
+
+### GCP Configuration
+
+The Makefile reads configuration from `config.yaml`:
+- Project ID from `gcp.project_id`
+- Region from `gcp.resources.cloud_run.region`
+
+Override with environment variables:
+```bash
+GCP_PROJECT=my-project GCP_REGION=us-central1 make cloud-run-deploy
+```
 
 ## Configuration
 
