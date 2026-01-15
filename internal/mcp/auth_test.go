@@ -223,6 +223,140 @@ func TestAuthHandler_SetupRoutes(t *testing.T) {
 	if rec.Code == http.StatusNotFound {
 		t.Error("/auth/callback route not registered")
 	}
+
+	// Test /auth/success route exists
+	req = httptest.NewRequest(http.MethodGet, "/auth/success?key=test-key", nil)
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	// Should get 200 OK since we provided the key
+	if rec.Code == http.StatusNotFound {
+		t.Error("/auth/success route not registered")
+	}
+}
+
+func TestHandleSuccess_ValidKey(t *testing.T) {
+	h := NewAuthHandler(&AuthHandlerConfig{
+		BaseURL: "https://example.com",
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/auth/success?key=550e8400-e29b-41d4-a716-446655440000&email=user@example.com", nil)
+	rec := httptest.NewRecorder()
+
+	h.HandleSuccess(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("HandleSuccess() status = %d, want %d", rec.Code, http.StatusOK)
+	}
+
+	body := rec.Body.String()
+
+	// Check Content-Type
+	contentType := rec.Header().Get("Content-Type")
+	if !strings.HasPrefix(contentType, "text/html") {
+		t.Errorf("HandleSuccess() Content-Type = %q, want text/html", contentType)
+	}
+
+	// Check that API key is displayed
+	if !strings.Contains(body, "550e8400-e29b-41d4-a716-446655440000") {
+		t.Error("HandleSuccess() response does not contain API key")
+	}
+
+	// Check that email is displayed
+	if !strings.Contains(body, "user@example.com") {
+		t.Error("HandleSuccess() response does not contain user email")
+	}
+
+	// Check that server URL is displayed
+	if !strings.Contains(body, "https://example.com") {
+		t.Error("HandleSuccess() response does not contain server URL")
+	}
+
+	// Check that copy button exists
+	if !strings.Contains(body, "copyToClipboard") {
+		t.Error("HandleSuccess() response does not contain copy button JavaScript")
+	}
+
+	// Check for security warning
+	if !strings.Contains(body, "Security Notice") || !strings.Contains(body, "securely") {
+		t.Error("HandleSuccess() response does not contain security warning")
+	}
+}
+
+func TestHandleSuccess_MissingKey(t *testing.T) {
+	h := NewAuthHandler(&AuthHandlerConfig{})
+
+	req := httptest.NewRequest(http.MethodGet, "/auth/success", nil)
+	rec := httptest.NewRecorder()
+
+	h.HandleSuccess(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("HandleSuccess() status = %d, want %d", rec.Code, http.StatusBadRequest)
+	}
+	if !strings.Contains(rec.Body.String(), "Missing API key") {
+		t.Errorf("HandleSuccess() body = %q, expected to contain 'Missing API key'", rec.Body.String())
+	}
+}
+
+func TestHandleSuccess_EmptyKey(t *testing.T) {
+	h := NewAuthHandler(&AuthHandlerConfig{})
+
+	req := httptest.NewRequest(http.MethodGet, "/auth/success?key=", nil)
+	rec := httptest.NewRecorder()
+
+	h.HandleSuccess(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("HandleSuccess() status = %d, want %d", rec.Code, http.StatusBadRequest)
+	}
+}
+
+func TestHandleSuccess_NoEmail(t *testing.T) {
+	h := NewAuthHandler(&AuthHandlerConfig{
+		BaseURL: "https://example.com",
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/auth/success?key=test-api-key-123", nil)
+	rec := httptest.NewRecorder()
+
+	h.HandleSuccess(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("HandleSuccess() status = %d, want %d", rec.Code, http.StatusOK)
+	}
+
+	body := rec.Body.String()
+
+	// Check that API key is displayed
+	if !strings.Contains(body, "test-api-key-123") {
+		t.Error("HandleSuccess() response does not contain API key")
+	}
+
+	// Email should not be displayed (optional field)
+	// But the page should still render correctly
+}
+
+func TestHandleSuccess_FallbackServerURL(t *testing.T) {
+	h := NewAuthHandler(&AuthHandlerConfig{
+		// No BaseURL configured - should use request host
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/auth/success?key=test-key", nil)
+	req.Host = "localhost:8080"
+	rec := httptest.NewRecorder()
+
+	h.HandleSuccess(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("HandleSuccess() status = %d, want %d", rec.Code, http.StatusOK)
+	}
+
+	body := rec.Body.String()
+
+	// Should show http://localhost:8080 as the server URL (http since no TLS)
+	if !strings.Contains(body, "http://localhost:8080") {
+		t.Error("HandleSuccess() response does not contain fallback server URL")
+	}
 }
 
 func TestGetBaseURL(t *testing.T) {
