@@ -2144,7 +2144,7 @@
   - CLI with --api-key flag uses static key validation
   - CLI without MCP flags uses file-based auth
   - Invalid API Key returns 401 immediately
-  passes: false
+  passes: true
 - id: US-00040
   title: 'google-contacts skill: Document MCP server deployment and usage'
   priority: 40
