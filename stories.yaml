@@ -1840,7 +1840,7 @@
   - Makefile contains init-plan, init-deploy, plan, deploy targets
   - .gitignore includes .terraform, *.tfstate
   - scripts/run.sh parse_config validates config.yaml
-  passes: false
+  passes: true
 - id: US-00032
   title: 'terraform: Cloud Run service configuration'
   priority: 32
