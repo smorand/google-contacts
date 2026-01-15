@@ -71,6 +71,9 @@ var (
 	mcpHost             string
 	mcpAPIKey           string
 	mcpFirestoreProject string
+	mcpBaseURL          string
+	mcpSecretName       string
+	mcpCredentialFile   string
 )
 
 // Command definitions
@@ -813,6 +816,9 @@ func runMCP(cmd *cobra.Command, args []string) error {
 		Port:             mcpPort,
 		APIKey:           mcpAPIKey,
 		FirestoreProject: mcpFirestoreProject,
+		BaseURL:          mcpBaseURL,
+		SecretName:       mcpSecretName,
+		CredentialFile:   mcpCredentialFile,
 	}
 
 	// Create and run the MCP server
@@ -1193,6 +1199,9 @@ func Init() {
 	mcpCmd.Flags().StringVarP(&mcpHost, "host", "H", "localhost", "Host to bind to")
 	mcpCmd.Flags().StringVar(&mcpAPIKey, "api-key", "", "Static API key for authentication")
 	mcpCmd.Flags().StringVar(&mcpFirestoreProject, "firestore-project", "", "GCP project for Firestore API key validation")
+	mcpCmd.Flags().StringVar(&mcpBaseURL, "base-url", "", "Base URL for OAuth callbacks (e.g., https://example.com)")
+	mcpCmd.Flags().StringVar(&mcpSecretName, "secret-name", "", "Secret Manager secret name for OAuth credentials")
+	mcpCmd.Flags().StringVar(&mcpCredentialFile, "credential-file", "", "Local OAuth credential file path (fallback)")
 
 	// Register commands
 	RootCmd.AddCommand(versionCmd)
