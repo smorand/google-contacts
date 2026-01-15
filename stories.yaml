@@ -1772,7 +1772,7 @@
   - contacts_delete tool removes contact
   - Invalid input returns MCP error response
   - Missing required fields return validation error
-  passes: false
+  passes: true
 - id: US-00030
   title: 'google-contacts: MCP API Key middleware'
   priority: 30

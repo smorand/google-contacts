@@ -443,7 +443,14 @@ google-contacts mcp --host 0.0.0.0 --port 8080
 | `--firestore-project` | | | GCP project for Firestore API key validation |
 
 **Available tools:**
-- `ping` - Test connectivity with the server
+| Tool | Description |
+|------|-------------|
+| `ping` | Test connectivity with the server |
+| `contacts_create` | Create a new contact (requires firstName, lastName, phones) |
+| `contacts_search` | Search contacts by name, phone, email, or company |
+| `contacts_show` | Get full details of a contact by ID |
+| `contacts_update` | Update an existing contact (partial updates supported) |
+| `contacts_delete` | Delete a contact by ID |
 
 **Protocol:**
 - Uses MCP protocol over Streamable HTTP transport

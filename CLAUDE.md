@@ -315,15 +315,25 @@ google-contacts mcp --host 0.0.0.0 --port 8080
 
 ### Available Tools
 
-Currently implemented:
-- **ping** - Test connectivity with the server
+All contact management tools are implemented:
 
-Future tools (to be implemented in US-00029):
-- create_contact - Create a new contact
-- search_contacts - Search contacts by query
-- get_contact - Get contact details by ID
-- update_contact - Update an existing contact
-- delete_contact - Delete a contact
+| Tool | Description |
+|------|-------------|
+| **ping** | Test connectivity with the server |
+| **contacts_create** | Create a new contact (requires firstName, lastName, phones) |
+| **contacts_search** | Search contacts by name, phone, email, or company |
+| **contacts_show** | Get full details of a contact by ID |
+| **contacts_update** | Update an existing contact (only specified fields are modified) |
+| **contacts_delete** | Delete a contact by ID |
+
+**Tool Input/Output Types:**
+
+See `internal/mcp/server.go` for complete type definitions including:
+- `CreateInput` / `CreateOutput` - Contact creation with phones, emails, addresses
+- `SearchInput` / `SearchOutput` - Search query and results
+- `ShowInput` / `ShowOutput` - Contact ID and full details
+- `UpdateInput` / `UpdateOutput` - Partial updates with add/remove operations
+- `DeleteInput` / `DeleteOutput` - Contact ID and confirmation
 
 ### MCP Protocol
 
@@ -384,11 +394,29 @@ curl -X POST http://localhost:8080/ \
   -H "Mcp-Session-Id: SESSION_ID" \
   -d '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}'
 
-# Call a tool
+# Call ping tool
 curl -X POST http://localhost:8080/ \
   -H "Content-Type: application/json" \
   -H "Mcp-Session-Id: SESSION_ID" \
   -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"ping","arguments":{}}}'
+
+# Search contacts
+curl -X POST http://localhost:8080/ \
+  -H "Content-Type: application/json" \
+  -H "Mcp-Session-Id: SESSION_ID" \
+  -d '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"contacts_search","arguments":{"query":"John"}}}'
+
+# Create a contact
+curl -X POST http://localhost:8080/ \
+  -H "Content-Type: application/json" \
+  -H "Mcp-Session-Id: SESSION_ID" \
+  -d '{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"contacts_create","arguments":{"firstName":"John","lastName":"Doe","phones":[{"value":"+33612345678","type":"mobile"}]}}}'
+
+# Show contact details
+curl -X POST http://localhost:8080/ \
+  -H "Content-Type: application/json" \
+  -H "Mcp-Session-Id: SESSION_ID" \
+  -d '{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"contacts_show","arguments":{"contactId":"c123456789"}}}'
 ```
 
 ## People API Reference
