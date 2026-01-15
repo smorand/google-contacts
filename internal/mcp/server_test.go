@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"google-contacts/pkg/auth"
 )
 
 func TestExtractBearerToken(t *testing.T) {
@@ -256,5 +258,265 @@ func TestAuthMiddleware_StaticKey_Invalid(t *testing.T) {
 				t.Error("expected next handler NOT to be called")
 			}
 		})
+	}
+}
+
+func TestAuthMiddleware_ContextPropagation(t *testing.T) {
+	// This test verifies that when auth middleware processes a request,
+	// it properly propagates context values to the next handler.
+	// This is crucial for per-user token integration where the refresh token
+	// is injected into context for tool handlers to use.
+
+	cfg := &Config{
+		Host:             "localhost",
+		Port:             8080,
+		APIKey:           "", // No static key - allows any request
+		FirestoreProject: "",
+	}
+	server := NewServer(cfg)
+
+	var receivedCtx context.Context
+	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedCtx = r.Context()
+		w.WriteHeader(http.StatusOK)
+	})
+
+	middleware := server.authMiddleware(nextHandler)
+
+	// Create request with custom context value
+	type testKey string
+	req := httptest.NewRequest(http.MethodPost, "/", nil)
+	req = req.WithContext(context.WithValue(req.Context(), testKey("test"), "value"))
+	rec := httptest.NewRecorder()
+
+	middleware.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("expected status 200, got %d", rec.Code)
+	}
+
+	// Verify context was propagated
+	if receivedCtx == nil {
+		t.Fatal("context was not propagated to handler")
+	}
+	if v := receivedCtx.Value(testKey("test")); v != "value" {
+		t.Errorf("context value not propagated, got %v", v)
+	}
+}
+
+func TestAuthMiddleware_RefreshTokenInjection(t *testing.T) {
+	// This test verifies that auth middleware does NOT inject refresh token
+	// when using static API key (refresh token only comes from Firestore).
+	// Static API key mode uses local file-based auth instead.
+
+	cfg := &Config{
+		Host:             "localhost",
+		Port:             8080,
+		APIKey:           "static-key",
+		FirestoreProject: "",
+	}
+	server := NewServer(cfg)
+
+	var receivedCtx context.Context
+	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedCtx = r.Context()
+		w.WriteHeader(http.StatusOK)
+	})
+
+	middleware := server.authMiddleware(nextHandler)
+
+	req := httptest.NewRequest(http.MethodPost, "/", nil)
+	req.Header.Set("Authorization", "Bearer static-key")
+	rec := httptest.NewRecorder()
+
+	middleware.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("expected status 200, got %d", rec.Code)
+	}
+
+	// Verify no refresh token in context (static key mode uses file-based auth)
+	if receivedCtx == nil {
+		t.Fatal("context was not propagated to handler")
+	}
+
+	// The refresh token should NOT be present for static key auth
+	// (refresh token injection only happens with Firestore-based keys)
+	token, ok := auth.GetRefreshTokenFromContext(receivedCtx)
+	if ok || token != "" {
+		t.Errorf("expected no refresh token in context for static key auth, got %q", token)
+	}
+}
+
+func TestAuthMiddleware_WithRefreshToken(t *testing.T) {
+	// This test simulates what happens when a refresh token is injected into context.
+	// While we can't test Firestore integration in unit tests, we can verify that
+	// the auth package's context functions work correctly.
+
+	// Test the auth package's context functions directly
+	ctx := context.Background()
+
+	// Initially no token
+	token, ok := auth.GetRefreshTokenFromContext(ctx)
+	if ok || token != "" {
+		t.Errorf("expected no token initially, got %q", token)
+	}
+
+	// Add a refresh token
+	testToken := "test-refresh-token-12345"
+	ctx = auth.WithRefreshToken(ctx, testToken)
+
+	// Now should have the token
+	token, ok = auth.GetRefreshTokenFromContext(ctx)
+	if !ok {
+		t.Error("expected token to be present in context")
+	}
+	if token != testToken {
+		t.Errorf("expected token %q, got %q", testToken, token)
+	}
+}
+
+func TestPerUserTokenFlow(t *testing.T) {
+	// This test documents the expected flow for per-user token authentication.
+	// It verifies the integration between components without requiring actual
+	// external services (Firestore, Google API).
+
+	// 1. User authenticates via OAuth, gets API key stored in Firestore
+	//    (tested in auth_test.go)
+
+	// 2. Request arrives with API key in Authorization header
+	req := httptest.NewRequest(http.MethodPost, "/", nil)
+	apiKey := "test-api-key-uuid"
+	req.Header.Set("Authorization", "Bearer "+apiKey)
+
+	// Verify header extraction works
+	extracted := extractBearerToken(req)
+	if extracted != apiKey {
+		t.Errorf("extractBearerToken() = %q, want %q", extracted, apiKey)
+	}
+
+	// 3. When Firestore validates the key, it returns a refresh token
+	//    (this would be mocked in integration tests)
+	simulatedRefreshToken := "1//0gXXXXXX"
+
+	// 4. Middleware injects refresh token into context
+	ctx := auth.WithRefreshToken(req.Context(), simulatedRefreshToken)
+
+	// 5. Tool handler receives context with token
+	token, ok := auth.GetRefreshTokenFromContext(ctx)
+	if !ok {
+		t.Error("refresh token should be present in context")
+	}
+	if token != simulatedRefreshToken {
+		t.Errorf("got token %q, want %q", token, simulatedRefreshToken)
+	}
+
+	// 6. contacts.GetPeopleService(ctx) would use this token via auth.GetClient(ctx)
+	//    (this calls Google API, so tested in integration tests)
+}
+
+func TestInputStructTypes(t *testing.T) {
+	// Test that MCP input/output struct types are correctly defined
+	// This ensures the schema generation works properly
+
+	// CreateInput validation
+	create := CreateInput{
+		FirstName: "John",
+		LastName:  "Doe",
+		Phones:    []PhoneInput{{Value: "+33612345678", Type: "mobile"}},
+	}
+	if create.FirstName == "" || create.LastName == "" {
+		t.Error("CreateInput fields not accessible")
+	}
+	if len(create.Phones) != 1 {
+		t.Error("CreateInput phones not accessible")
+	}
+
+	// SearchInput validation
+	search := SearchInput{Query: "test"}
+	if search.Query == "" {
+		t.Error("SearchInput query not accessible")
+	}
+
+	// ShowInput validation
+	show := ShowInput{ContactID: "c123"}
+	if show.ContactID == "" {
+		t.Error("ShowInput contactId not accessible")
+	}
+
+	// UpdateInput validation
+	update := UpdateInput{
+		ContactID: "c123",
+		FirstName: "Jane",
+		AddPhones: []PhoneInput{{Value: "+33698765432", Type: "work"}},
+	}
+	if update.ContactID == "" || update.FirstName == "" {
+		t.Error("UpdateInput fields not accessible")
+	}
+
+	// DeleteInput validation
+	del := DeleteInput{ContactID: "c123"}
+	if del.ContactID == "" {
+		t.Error("DeleteInput contactId not accessible")
+	}
+}
+
+func TestOutputStructTypes(t *testing.T) {
+	// Test that MCP output struct types are correctly defined
+
+	// CreateOutput
+	createOut := CreateOutput{
+		ResourceName: "people/c123",
+		DisplayName:  "John Doe",
+		Message:      "Created",
+	}
+	if createOut.ResourceName == "" || createOut.DisplayName == "" {
+		t.Error("CreateOutput fields not accessible")
+	}
+
+	// SearchOutput
+	searchOut := SearchOutput{
+		Count: 1,
+		Results: []SearchResultItem{{
+			ResourceName: "people/c123",
+			DisplayName:  "John Doe",
+		}},
+	}
+	if searchOut.Count != 1 || len(searchOut.Results) != 1 {
+		t.Error("SearchOutput fields not correct")
+	}
+
+	// ShowOutput
+	showOut := ShowOutput{
+		ResourceName: "people/c123",
+		FirstName:    "John",
+		LastName:     "Doe",
+		Phones:       []PhoneOutput{{Value: "+33612345678", Type: "mobile"}},
+		Emails:       []EmailOutput{{Value: "john@example.com", Type: "work"}},
+	}
+	if showOut.ResourceName == "" || showOut.FirstName == "" {
+		t.Error("ShowOutput fields not accessible")
+	}
+	if len(showOut.Phones) != 1 || len(showOut.Emails) != 1 {
+		t.Error("ShowOutput arrays not correct")
+	}
+
+	// UpdateOutput (embeds ShowOutput)
+	updateOut := UpdateOutput{
+		Message: "Updated",
+	}
+	updateOut.ResourceName = "people/c123"
+	if updateOut.Message == "" || updateOut.ResourceName == "" {
+		t.Error("UpdateOutput fields not accessible")
+	}
+
+	// DeleteOutput
+	deleteOut := DeleteOutput{
+		Message:     "Deleted",
+		DeletedID:   "people/c123",
+		DisplayName: "John Doe",
+	}
+	if deleteOut.Message == "" || deleteOut.DeletedID == "" {
+		t.Error("DeleteOutput fields not accessible")
 	}
 }

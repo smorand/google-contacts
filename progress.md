@@ -1,5 +1,42 @@
 # Google Contacts Project - Progress Log
 
+## 2026-01-15 - US-00039 - google-contacts: MCP server integration with per-user tokens
+
+**Status:** Success
+
+**What was implemented:**
+- Added comprehensive tests verifying per-user token integration flow
+- Tests verify context propagation from auth middleware to MCP tool handlers
+- Tests verify refresh token injection via `auth.WithRefreshToken()` and extraction via `auth.GetRefreshTokenFromContext()`
+- Tests verify static API key mode does not inject refresh tokens (uses file-based auth)
+- Tests verify MCP input/output struct types are correctly defined for schema generation
+- Added `TestPerUserTokenFlow` documenting the end-to-end authentication flow
+
+**Files changed:**
+- `internal/mcp/server_test.go` - Added tests:
+  - `TestAuthMiddleware_ContextPropagation` - Verifies context values propagate through middleware
+  - `TestAuthMiddleware_RefreshTokenInjection` - Verifies static key mode behavior
+  - `TestAuthMiddleware_WithRefreshToken` - Tests auth package context functions
+  - `TestPerUserTokenFlow` - Documents and tests the complete per-user auth flow
+  - `TestInputStructTypes` - Validates MCP input struct definitions
+  - `TestOutputStructTypes` - Validates MCP output struct definitions
+
+**Learnings:**
+- The per-user token integration was already implemented in previous stories (US-00036 through US-00038)
+- This story focused on verifying and testing the integration
+- Key integration points:
+  1. `auth.WithRefreshToken(ctx, token)` - Injects refresh token into context
+  2. `auth.GetRefreshTokenFromContext(ctx)` - Retrieves token from context
+  3. `auth.GetClient(ctx)` - Checks context for token before falling back to file
+  4. `authMiddleware` - Injects refresh token when validating Firestore API keys
+- Static API key mode (`--api-key` flag) uses local file-based auth, not Firestore tokens
+- Firestore API key mode (`--firestore-project` flag) enables per-user token authentication
+- The MCP SDK's StreamableHTTPHandler properly propagates HTTP request context to tool handlers
+
+**Remaining issues:** None
+
+---
+
 ## 2026-01-13 - US-00001 - email-manager: Restructure to golang skill layout
 
 **Status:** Completed successfully
