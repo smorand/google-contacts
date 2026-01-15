@@ -1843,3 +1843,35 @@ Stories should be implemented in order:
 **Remaining issues:** None
 
 ---
+
+## 2026-01-15 - US-00035 - google-contacts: Makefile deployment targets
+
+**Status:** Success
+
+**What was implemented:**
+- Created multi-stage Dockerfile for MCP server containerization
+- Added docker-build target to build container image locally
+- Added docker-push target to push image to Artifact Registry
+- Added cloud-run-deploy target for full deployment pipeline (build + push + deploy)
+- Updated CLAUDE.md with Docker deployment documentation
+- Updated README.md with deployment section and targets
+
+**Files changed:**
+- `Dockerfile` - New multi-stage build (Go 1.25 builder, Alpine final image)
+- `Makefile` - Added docker-build, docker-push, cloud-run-deploy targets
+- `CLAUDE.md` - Added Docker Deployment section with targets table and usage examples
+- `README.md` - Added Docker/Cloud Run targets section and deployment documentation
+
+**Learnings:**
+- Go 1.25 is available in Docker Hub as `golang:1.25` (not alpine variant yet)
+- Multi-stage builds significantly reduce final image size (~20MB vs ~800MB)
+- Makefile can read GCP config from config.yaml using shell commands and awk
+- The `cloud-run-deploy` target chains docker-build → docker-push → gcloud run deploy
+- REGISTRY_URL construction: `$(GCP_REGION)-docker.pkg.dev/$(GCP_PROJECT)/$(BINARY_NAME)`
+- Health check using wget in Alpine (busybox wget) instead of curl
+- Running as non-root user (appuser) follows security best practices
+- Existing CLI targets remain unchanged for backward compatibility
+
+**Remaining issues:** None
+
+---

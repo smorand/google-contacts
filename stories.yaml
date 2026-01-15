@@ -1949,7 +1949,7 @@
   - make build still produces CLI binary
   - make test still runs unit tests
   - make install still works for local CLI
-  passes: false
+  passes: true
 - id: US-00036
   title: 'google-contacts: OAuth authentication endpoint (/auth)'
   priority: 36
