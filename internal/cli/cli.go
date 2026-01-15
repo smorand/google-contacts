@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"text/tabwriter"
 
@@ -810,14 +811,49 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 }
 
 func runMCP(cmd *cobra.Command, args []string) error {
+	// Determine host: use flag value, then HOST env var, then default
+	host := mcpHost
+	if host == "localhost" {
+		// Check for HOST environment variable (Cloud Run compatible)
+		if envHost := os.Getenv("HOST"); envHost != "" {
+			host = envHost
+		}
+	}
+
+	// Determine port: use flag value, then PORT env var, then default
+	port := mcpPort
+	if envPort := os.Getenv("PORT"); envPort != "" {
+		if p, err := strconv.Atoi(envPort); err == nil {
+			port = p
+		}
+	}
+
+	// Get Firestore project from env if not set via flag
+	firestoreProject := mcpFirestoreProject
+	if firestoreProject == "" {
+		firestoreProject = os.Getenv("FIRESTORE_PROJECT")
+	}
+
+	// Get Secret Manager secret name from env if not set via flag
+	secretName := mcpSecretName
+	if secretName == "" {
+		secretName = os.Getenv("SECRET_NAME")
+	}
+
+	// Get base URL from env if not set via flag
+	baseURL := mcpBaseURL
+	if baseURL == "" {
+		baseURL = os.Getenv("BASE_URL")
+	}
+
 	// Create MCP server configuration
 	cfg := &mcpserver.Config{
-		Host:             mcpHost,
-		Port:             mcpPort,
+		Host:             host,
+		Port:             port,
 		APIKey:           mcpAPIKey,
-		FirestoreProject: mcpFirestoreProject,
-		BaseURL:          mcpBaseURL,
-		SecretName:       mcpSecretName,
+		FirestoreProject: firestoreProject,
+		BaseURL:          baseURL,
+		SecretName:       secretName,
 		CredentialFile:   mcpCredentialFile,
 	}
 

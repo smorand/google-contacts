@@ -358,7 +358,7 @@ cloud-run-deploy: docker-push
 		--project $(GCP_PROJECT) \
 		--platform managed \
 		--allow-unauthenticated \
-		--set-env-vars="FIRESTORE_PROJECT=$(GCP_PROJECT),PORT=8080" \
+		--set-env-vars="FIRESTORE_PROJECT=$(GCP_PROJECT)" \
 		--service-account="scmgcontacts-cloudrun-prd@$(GCP_PROJECT).iam.gserviceaccount.com" \
 		--quiet
 	@echo ""

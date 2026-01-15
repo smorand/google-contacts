@@ -217,151 +217,163 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
+		// If we have an auth handler with OAuth config, inject it into context
+		// This allows GetClient to use Secret Manager credentials instead of local file
+		if s.authHandler != nil {
+			oauthConfig, err := s.authHandler.getOAuthConfig(ctx)
+			if err != nil {
+				log.Printf("Failed to get OAuth config: %v", err)
+				http.Error(w, "OAuth configuration error", http.StatusInternalServerError)
+				return
+			}
+			ctx = auth.WithOAuthConfig(ctx, oauthConfig)
+		}
+
 		// If we have a refresh token from Firestore, inject it into context
 		if refreshToken != "" {
 			ctx = auth.WithRefreshToken(ctx, refreshToken)
-			r = r.WithContext(ctx)
 		}
 
+		r = r.WithContext(ctx)
 		next.ServeHTTP(w, r)
 	})
 }
 
 // PhoneInput represents a phone number with type for MCP tools.
 type PhoneInput struct {
-	Value string `json:"value" jsonschema:"description=Phone number (e.g. +33612345678)"`
-	Type  string `json:"type,omitempty" jsonschema:"description=Phone type: mobile work home main other. Default: mobile"`
+	Value string `json:"value" jsonschema:"Phone number (e.g. +33612345678)"`
+	Type  string `json:"type,omitempty" jsonschema:"Phone type: mobile work home main other. Default: mobile"`
 }
 
 // EmailInput represents an email address with type for MCP tools.
 type EmailInput struct {
-	Value string `json:"value" jsonschema:"description=Email address"`
-	Type  string `json:"type,omitempty" jsonschema:"description=Email type: work home other. Default: work"`
+	Value string `json:"value" jsonschema:"Email address"`
+	Type  string `json:"type,omitempty" jsonschema:"Email type: work home other. Default: work"`
 }
 
 // AddressInput represents a postal address with type for MCP tools.
 type AddressInput struct {
-	Value string `json:"value" jsonschema:"description=Address (e.g. 10 Rue Example 75001 Paris France)"`
-	Type  string `json:"type,omitempty" jsonschema:"description=Address type: home work other. Default: home"`
+	Value string `json:"value" jsonschema:"Address (e.g. 10 Rue Example 75001 Paris France)"`
+	Type  string `json:"type,omitempty" jsonschema:"Address type: home work other. Default: home"`
 }
 
 // CreateInput is the input schema for contacts_create tool.
 type CreateInput struct {
-	FirstName string         `json:"firstName" jsonschema:"required,description=First name of the contact"`
-	LastName  string         `json:"lastName" jsonschema:"required,description=Last name of the contact"`
-	Phones    []PhoneInput   `json:"phones" jsonschema:"required,description=Phone numbers with optional types"`
-	Emails    []EmailInput   `json:"emails,omitempty" jsonschema:"description=Email addresses with optional types"`
-	Addresses []AddressInput `json:"addresses,omitempty" jsonschema:"description=Postal addresses with optional types"`
-	Company   string         `json:"company,omitempty" jsonschema:"description=Company name"`
-	Position  string         `json:"position,omitempty" jsonschema:"description=Job title/position"`
-	Notes     string         `json:"notes,omitempty" jsonschema:"description=Notes about the contact"`
-	Birthday  string         `json:"birthday,omitempty" jsonschema:"description=Birthday in YYYY-MM-DD or --MM-DD format"`
+	FirstName string         `json:"firstName" jsonschema:"First name of the contact"`
+	LastName  string         `json:"lastName" jsonschema:"Last name of the contact"`
+	Phones    []PhoneInput   `json:"phones" jsonschema:"Phone numbers with optional types (required)"`
+	Emails    []EmailInput   `json:"emails,omitempty" jsonschema:"Email addresses with optional types"`
+	Addresses []AddressInput `json:"addresses,omitempty" jsonschema:"Postal addresses with optional types"`
+	Company   string         `json:"company,omitempty" jsonschema:"Company name"`
+	Position  string         `json:"position,omitempty" jsonschema:"Job title/position"`
+	Notes     string         `json:"notes,omitempty" jsonschema:"Notes about the contact"`
+	Birthday  string         `json:"birthday,omitempty" jsonschema:"Birthday in YYYY-MM-DD or --MM-DD format"`
 }
 
 // CreateOutput is the output schema for contacts_create tool.
 type CreateOutput struct {
-	ResourceName string `json:"resourceName" jsonschema:"description=Google Contact ID (e.g. people/c123456789)"`
-	DisplayName  string `json:"displayName" jsonschema:"description=Full display name of the created contact"`
-	Message      string `json:"message" jsonschema:"description=Success message"`
+	ResourceName string `json:"resourceName" jsonschema:"Google Contact ID (e.g. people/c123456789)"`
+	DisplayName  string `json:"displayName" jsonschema:"Full display name of the created contact"`
+	Message      string `json:"message" jsonschema:"Success message"`
 }
 
 // SearchInput is the input schema for contacts_search tool.
 type SearchInput struct {
-	Query string `json:"query" jsonschema:"required,description=Search query (matches name phone email company)"`
+	Query string `json:"query" jsonschema:"Search query (matches name phone email company)"`
 }
 
 // SearchResultItem represents a single search result for MCP output.
 type SearchResultItem struct {
-	ResourceName string `json:"resourceName" jsonschema:"description=Google Contact ID"`
-	DisplayName  string `json:"displayName" jsonschema:"description=Full display name"`
-	Phone        string `json:"phone,omitempty" jsonschema:"description=Primary phone number"`
-	Email        string `json:"email,omitempty" jsonschema:"description=Primary email address"`
-	Company      string `json:"company,omitempty" jsonschema:"description=Company name"`
-	Position     string `json:"position,omitempty" jsonschema:"description=Job title"`
+	ResourceName string `json:"resourceName" jsonschema:"Google Contact ID"`
+	DisplayName  string `json:"displayName" jsonschema:"Full display name"`
+	Phone        string `json:"phone,omitempty" jsonschema:"Primary phone number"`
+	Email        string `json:"email,omitempty" jsonschema:"Primary email address"`
+	Company      string `json:"company,omitempty" jsonschema:"Company name"`
+	Position     string `json:"position,omitempty" jsonschema:"Job title"`
 }
 
 // SearchOutput is the output schema for contacts_search tool.
 type SearchOutput struct {
-	Results []SearchResultItem `json:"results" jsonschema:"description=List of matching contacts"`
-	Count   int                `json:"count" jsonschema:"description=Number of results found"`
+	Results []SearchResultItem `json:"results" jsonschema:"List of matching contacts"`
+	Count   int                `json:"count" jsonschema:"Number of results found"`
 }
 
 // ShowInput is the input schema for contacts_show tool.
 type ShowInput struct {
-	ContactID string `json:"contactId" jsonschema:"required,description=Contact ID (e.g. c123456789 or people/c123456789)"`
+	ContactID string `json:"contactId" jsonschema:"Contact ID (e.g. c123456789 or people/c123456789)"`
 }
 
 // PhoneOutput represents a phone number in contact details output.
 type PhoneOutput struct {
-	Value string `json:"value" jsonschema:"description=Phone number"`
-	Type  string `json:"type" jsonschema:"description=Phone type (mobile work home etc)"`
+	Value string `json:"value" jsonschema:"Phone number"`
+	Type  string `json:"type" jsonschema:"Phone type (mobile work home etc)"`
 }
 
 // EmailOutput represents an email address in contact details output.
 type EmailOutput struct {
-	Value string `json:"value" jsonschema:"description=Email address"`
-	Type  string `json:"type" jsonschema:"description=Email type (work home etc)"`
+	Value string `json:"value" jsonschema:"Email address"`
+	Type  string `json:"type" jsonschema:"Email type (work home etc)"`
 }
 
 // AddressOutput represents a postal address in contact details output.
 type AddressOutput struct {
-	Value string `json:"value" jsonschema:"description=Full address"`
-	Type  string `json:"type" jsonschema:"description=Address type (home work etc)"`
+	Value string `json:"value" jsonschema:"Full address"`
+	Type  string `json:"type" jsonschema:"Address type (home work etc)"`
 }
 
 // ShowOutput is the output schema for contacts_show tool.
 type ShowOutput struct {
-	ResourceName string          `json:"resourceName" jsonschema:"description=Google Contact ID"`
-	FirstName    string          `json:"firstName" jsonschema:"description=First name"`
-	LastName     string          `json:"lastName" jsonschema:"description=Last name"`
-	DisplayName  string          `json:"displayName" jsonschema:"description=Full display name"`
-	Phones       []PhoneOutput   `json:"phones" jsonschema:"description=All phone numbers with types"`
-	Emails       []EmailOutput   `json:"emails" jsonschema:"description=All email addresses with types"`
-	Addresses    []AddressOutput `json:"addresses" jsonschema:"description=All postal addresses with types"`
-	Company      string          `json:"company,omitempty" jsonschema:"description=Company name"`
-	Position     string          `json:"position,omitempty" jsonschema:"description=Job title"`
-	Notes        string          `json:"notes,omitempty" jsonschema:"description=Notes about contact"`
-	Birthday     string          `json:"birthday,omitempty" jsonschema:"description=Birthday (YYYY-MM-DD or --MM-DD)"`
-	UpdatedAt    string          `json:"updatedAt,omitempty" jsonschema:"description=Last update timestamp"`
+	ResourceName string          `json:"resourceName" jsonschema:"Google Contact ID"`
+	FirstName    string          `json:"firstName" jsonschema:"First name"`
+	LastName     string          `json:"lastName" jsonschema:"Last name"`
+	DisplayName  string          `json:"displayName" jsonschema:"Full display name"`
+	Phones       []PhoneOutput   `json:"phones" jsonschema:"All phone numbers with types"`
+	Emails       []EmailOutput   `json:"emails" jsonschema:"All email addresses with types"`
+	Addresses    []AddressOutput `json:"addresses" jsonschema:"All postal addresses with types"`
+	Company      string          `json:"company,omitempty" jsonschema:"Company name"`
+	Position     string          `json:"position,omitempty" jsonschema:"Job title"`
+	Notes        string          `json:"notes,omitempty" jsonschema:"Notes about contact"`
+	Birthday     string          `json:"birthday,omitempty" jsonschema:"Birthday (YYYY-MM-DD or --MM-DD)"`
+	UpdatedAt    string          `json:"updatedAt,omitempty" jsonschema:"Last update timestamp"`
 }
 
 // UpdateInput is the input schema for contacts_update tool.
 type UpdateInput struct {
-	ContactID       string         `json:"contactId" jsonschema:"required,description=Contact ID to update"`
-	FirstName       string         `json:"firstName,omitempty" jsonschema:"description=New first name"`
-	LastName        string         `json:"lastName,omitempty" jsonschema:"description=New last name"`
-	Phones          []PhoneInput   `json:"phones,omitempty" jsonschema:"description=Replace ALL phones with these"`
-	AddPhones       []PhoneInput   `json:"addPhones,omitempty" jsonschema:"description=Add phones without removing existing"`
-	RemovePhones    []string       `json:"removePhones,omitempty" jsonschema:"description=Remove phones by value"`
-	Emails          []EmailInput   `json:"emails,omitempty" jsonschema:"description=Replace ALL emails with these"`
-	AddEmails       []EmailInput   `json:"addEmails,omitempty" jsonschema:"description=Add emails without removing existing"`
-	RemoveEmails    []string       `json:"removeEmails,omitempty" jsonschema:"description=Remove emails by value"`
-	Addresses       []AddressInput `json:"addresses,omitempty" jsonschema:"description=Replace ALL addresses with these"`
-	AddAddresses    []AddressInput `json:"addAddresses,omitempty" jsonschema:"description=Add addresses without removing existing"`
-	RemoveAddresses []string       `json:"removeAddresses,omitempty" jsonschema:"description=Remove addresses by street content"`
-	Company         string         `json:"company,omitempty" jsonschema:"description=New company name"`
-	Position        string         `json:"position,omitempty" jsonschema:"description=New job title"`
-	Notes           string         `json:"notes,omitempty" jsonschema:"description=New notes"`
-	Birthday        string         `json:"birthday,omitempty" jsonschema:"description=New birthday (YYYY-MM-DD or --MM-DD)"`
-	ClearBirthday   bool           `json:"clearBirthday,omitempty" jsonschema:"description=Set true to remove birthday"`
+	ContactID       string         `json:"contactId" jsonschema:"Contact ID to update"`
+	FirstName       string         `json:"firstName,omitempty" jsonschema:"New first name"`
+	LastName        string         `json:"lastName,omitempty" jsonschema:"New last name"`
+	Phones          []PhoneInput   `json:"phones,omitempty" jsonschema:"Replace ALL phones with these"`
+	AddPhones       []PhoneInput   `json:"addPhones,omitempty" jsonschema:"Add phones without removing existing"`
+	RemovePhones    []string       `json:"removePhones,omitempty" jsonschema:"Remove phones by value"`
+	Emails          []EmailInput   `json:"emails,omitempty" jsonschema:"Replace ALL emails with these"`
+	AddEmails       []EmailInput   `json:"addEmails,omitempty" jsonschema:"Add emails without removing existing"`
+	RemoveEmails    []string       `json:"removeEmails,omitempty" jsonschema:"Remove emails by value"`
+	Addresses       []AddressInput `json:"addresses,omitempty" jsonschema:"Replace ALL addresses with these"`
+	AddAddresses    []AddressInput `json:"addAddresses,omitempty" jsonschema:"Add addresses without removing existing"`
+	RemoveAddresses []string       `json:"removeAddresses,omitempty" jsonschema:"Remove addresses by street content"`
+	Company         string         `json:"company,omitempty" jsonschema:"New company name"`
+	Position        string         `json:"position,omitempty" jsonschema:"New job title"`
+	Notes           string         `json:"notes,omitempty" jsonschema:"New notes"`
+	Birthday        string         `json:"birthday,omitempty" jsonschema:"New birthday (YYYY-MM-DD or --MM-DD)"`
+	ClearBirthday   bool           `json:"clearBirthday,omitempty" jsonschema:"Set true to remove birthday"`
 }
 
 // UpdateOutput is the output schema for contacts_update tool.
 type UpdateOutput struct {
 	ShowOutput
-	Message string `json:"message" jsonschema:"description=Success message"`
+	Message string `json:"message" jsonschema:"Success message"`
 }
 
 // DeleteInput is the input schema for contacts_delete tool.
 type DeleteInput struct {
-	ContactID string `json:"contactId" jsonschema:"required,description=Contact ID to delete"`
+	ContactID string `json:"contactId" jsonschema:"Contact ID to delete"`
 }
 
 // DeleteOutput is the output schema for contacts_delete tool.
 type DeleteOutput struct {
-	Message     string `json:"message" jsonschema:"description=Success message"`
-	DeletedID   string `json:"deletedId" jsonschema:"description=ID of deleted contact"`
-	DisplayName string `json:"displayName,omitempty" jsonschema:"description=Name of deleted contact"`
+	Message     string `json:"message" jsonschema:"Success message"`
+	DeletedID   string `json:"deletedId" jsonschema:"ID of deleted contact"`
+	DisplayName string `json:"displayName,omitempty" jsonschema:"Name of deleted contact"`
 }
 
 // RegisterTools registers all contact management tools with the MCP server.
@@ -523,9 +535,10 @@ func (s *Server) handleSearchContacts(ctx context.Context, req *mcp.CallToolRequ
 		return nil, SearchOutput{}, fmt.Errorf("failed to search contacts: %w", err)
 	}
 
-	// Convert results
+	// Convert results - always initialize Results to empty slice to avoid null in JSON
 	output := SearchOutput{
-		Count: len(results),
+		Count:   len(results),
+		Results: []SearchResultItem{},
 	}
 	for _, r := range results {
 		output.Results = append(output.Results, SearchResultItem{

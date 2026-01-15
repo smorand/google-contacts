@@ -34,6 +34,18 @@ locals {
 
   # Service account email from init module (referenced by name)
   mcp_service_account = "${local.prefix}-cloudrun-${local.env}@${local.project_id}.iam.gserviceaccount.com"
+
+  # OAuth secret name from secrets.tf
+  oauth_secret_name = google_secret_manager_secret.oauth_credentials.secret_id
+}
+
+# ============================================
+# DATA SOURCES
+# ============================================
+
+# Get project info for the project number (used in Cloud Run URL)
+data "google_project" "current" {
+  project_id = local.project_id
 }
 
 # ============================================
@@ -57,9 +69,10 @@ resource "google_artifact_registry_repository" "mcp" {
 # ============================================
 
 resource "google_cloud_run_v2_service" "mcp" {
-  name     = local.mcp_name
-  location = local.cloud_run_region
-  ingress  = "INGRESS_TRAFFIC_ALL"
+  name                = local.mcp_name
+  location            = local.cloud_run_region
+  ingress             = "INGRESS_TRAFFIC_ALL"
+  deletion_protection = false # Can be set to true after initial deployment
 
   template {
     service_account = local.mcp_service_account
@@ -86,14 +99,25 @@ resource "google_cloud_run_v2_service" "mcp" {
       }
 
       # Environment variables for MCP server
+      # Note: PORT is reserved and automatically set by Cloud Run
+      env {
+        name  = "HOST"
+        value = "0.0.0.0"
+      }
+
       env {
         name  = "FIRESTORE_PROJECT"
         value = local.project_id
       }
 
       env {
-        name  = "PORT"
-        value = "8080"
+        name  = "SECRET_NAME"
+        value = local.oauth_secret_name
+      }
+
+      env {
+        name  = "BASE_URL"
+        value = "https://${local.mcp_name}-${data.google_project.current.number}.${local.cloud_run_region}.run.app"
       }
 
       env {
