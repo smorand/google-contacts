@@ -1,0 +1,95 @@
+# Google Contacts MCP - Infrastructure Configuration
+# Single source of truth for terraform (init and iac folders)
+
+# ============================================
+# GLOBAL CONFIGURATION
+# ============================================
+
+# Project prefix (used for resource naming)
+prefix: scmgcontacts
+
+# Project name
+project_name: google-contacts-mcp
+
+# Environment: dev, staging, prod, test
+env: prod
+
+# Human-readable project description
+description: Google Contacts MCP Server - Cloud Run deployment with OAuth API Key management
+
+# ============================================
+# CLOUD PROVIDER CONFIGURATION
+# ============================================
+
+providers:
+  - gcp
+
+# ============================================
+# GCP CONFIGURATION
+# ============================================
+gcp:
+  # GCP Project ID (will be configured per environment)
+  # This placeholder will be replaced with actual project ID
+  project_id: CONFIGURE_YOUR_GCP_PROJECT_ID
+
+  # Location (multi-region for Firestore)
+  location: europe-west1
+
+  # APIs/Services to enable on the project
+  services:
+    - run.googleapis.com
+    - firestore.googleapis.com
+    - secretmanager.googleapis.com
+    - cloudbuild.googleapis.com
+    - artifactregistry.googleapis.com
+    - cloudresourcemanager.googleapis.com
+    - iam.googleapis.com
+
+  # GCP-specific resource configuration
+  resources:
+    # Cloud Run configuration
+    cloud_run:
+      name: google-contacts-mcp
+      region: europe-west1
+      cpu: "1"
+      memory: 256Mi
+      min_instances: 0
+      max_instances: 3
+      allow_unauthenticated: true
+
+    # Firestore configuration
+    firestore:
+      database_id: "(default)"
+      location_id: eur3
+
+    # Artifact Registry configuration
+    artifact_registry:
+      name: google-contacts
+      format: DOCKER
+
+  # GCP-specific parameters
+  parameters:
+    log_retention_days: 30
+
+# ============================================
+# SECRETS CONFIGURATION
+# ============================================
+
+secrets:
+  # OAuth credentials secret name in Secret Manager
+  oauth_credentials: scm-pwd-oauth-creds
+
+# ============================================
+# SHARED CONFIGURATION
+# ============================================
+
+# Default resource specifications
+resources:
+  cpu: "1"
+  memory: 256Mi
+  replicas: 1
+
+# Application parameters
+parameters:
+  log_level: info
+  default_port: 8080

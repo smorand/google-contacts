@@ -290,3 +290,125 @@ help:
 	@echo "  -darwin-arm64  - macOS (Apple Silicon)"
 	@echo ""
 	@echo "The launcher script ($(BINARY_NAME).sh) automatically selects the right binary."
+
+
+# Terraform targets
+# Terraform targets
+.PHONY: plan deploy undeploy init-plan init-deploy init-destroy terraform-help check-init update-backend
+
+# Check if init has been deployed (by checking if state backend exists)
+check-init:
+	@if [ ! -d "init/.terraform" ]; then \
+		echo ""; \
+		echo "❌ ERROR: Initialization not completed!"; \
+		echo ""; \
+		echo "You must run initialization BEFORE deploying main infrastructure:"; \
+		echo ""; \
+		echo "  1️⃣  make init-plan       # Review what will be created"; \
+		echo "  2️⃣  make init-deploy     # Deploy state backend & service accounts"; \
+		echo "  3️⃣  make plan            # Then plan main infrastructure"; \
+		echo "  4️⃣  make deploy          # Finally deploy main infrastructure"; \
+		echo ""; \
+		echo "The init step creates:"; \
+		echo "  - Terraform state backend (GCS/S3/Azure Storage)"; \
+		echo "  - Service accounts / IAM roles"; \
+		echo "  - API enablement (GCP)"; \
+		echo ""; \
+		exit 1; \
+	fi
+
+# Update iac/provider.tf with backend configuration from init/
+update-backend:
+	@echo "📝 Updating iac/provider.tf with backend configuration..."
+	@if [ ! -d "init/.terraform" ]; then \
+		echo "❌ Error: init/.terraform not found. Run 'make init-deploy' first."; \
+		exit 1; \
+	fi
+	@if [ ! -f "iac/provider.tf.template" ]; then \
+		echo "❌ Error: iac/provider.tf.template not found."; \
+		exit 1; \
+	fi
+	@if [ -f "iac/provider.tf" ] && grep -q 'backend "' iac/provider.tf && ! grep -q 'BACKEND_PLACEHOLDER' iac/provider.tf; then \
+		echo "⚠️  Warning: iac/provider.tf already has a backend configured. Skipping."; \
+	else \
+		BACKEND_CONFIG=$$(cd init && terraform output -raw backend_config 2>/dev/null); \
+		if [ -z "$$BACKEND_CONFIG" ]; then \
+			echo "❌ Error: Could not get backend_config from terraform output."; \
+			exit 1; \
+		fi; \
+		awk -v backend="$$BACKEND_CONFIG" ' \
+			/# BACKEND_PLACEHOLDER/ { \
+				n = split(backend, lines, "\n"); \
+				for (i = 1; i <= n; i++) { \
+					gsub(/^[ \t]+|[ \t]+$$/, "", lines[i]); \
+					if (lines[i] != "") print "  " lines[i]; \
+				} \
+				next \
+			} \
+			{ print } \
+		' iac/provider.tf.template > iac/provider.tf; \
+		echo "✅ Successfully updated iac/provider.tf"; \
+		echo ""; \
+		echo "Backend configuration:"; \
+		echo "$$BACKEND_CONFIG"; \
+	fi
+
+# IAC targets (main infrastructure)
+plan: check-init
+	@echo "🔍 Planning main infrastructure..."
+	cd iac && terraform init && terraform plan
+
+deploy: check-init
+	@echo "🚀 Deploying main infrastructure..."
+	cd iac && terraform init && terraform apply -auto-approve
+
+undeploy: check-init
+	@echo "💣 Destroying main infrastructure..."
+	cd iac && terraform destroy -auto-approve
+
+# Init targets (backend, state, service accounts)
+init-plan:
+	@echo "🔍 Planning initialization..."
+	cd init && terraform init && terraform plan
+
+init-deploy:
+	@echo "🚀 Deploying initialization..."
+	cd init && terraform init && terraform apply -auto-approve
+	@$(MAKE) update-backend
+	@echo ""
+	@echo "✅ Initialization complete!"
+	@echo ""
+	@echo "Next steps:"
+	@echo "  1. Run: make plan"
+	@echo "  2. Run: make deploy"
+
+init-destroy:
+	@echo "💣 Destroying initialization resources..."
+	@echo "⚠️  WARNING: This will destroy state backend and service accounts!"
+	@read -p "Are you sure? (yes/no): " answer && [ "$$answer" = "yes" ]
+	cd init && terraform destroy -auto-approve
+
+# Help
+terraform-help:
+	@echo "Terraform Makefile Targets:"
+	@echo ""
+	@echo "🚀 Deployment Workflow (First Time):"
+	@echo "  1. make init-plan       - Plan initialization (state backend, service accounts)"
+	@echo "  2. make init-deploy     - Deploy initialization"
+	@echo "  3. make plan            - Plan main infrastructure"
+	@echo "  4. make deploy          - Deploy main infrastructure"
+	@echo ""
+	@echo "📦 Main Infrastructure:"
+	@echo "  make plan               - Plan main infrastructure changes"
+	@echo "  make deploy             - Deploy main infrastructure"
+	@echo "  make undeploy           - Destroy main infrastructure"
+	@echo ""
+	@echo "🔧 Initialization (One-time Setup):"
+	@echo "  make init-plan          - Plan initialization resources"
+	@echo "  make init-deploy        - Deploy initialization resources"
+	@echo "  make init-destroy       - Destroy initialization (⚠️  DANGEROUS!)"
+	@echo ""
+	@echo "ℹ️  Help:"
+	@echo "  make terraform-help     - Show this help message"
+	@echo ""
+	@echo "⚠️  Note: You must run 'make init-deploy' BEFORE running 'make deploy'"
