@@ -20,6 +20,24 @@ import (
 	people "google.golang.org/api/people/v1"
 )
 
+// contextKey is a type for context keys used in this package.
+type contextKey string
+
+// refreshTokenKey is the context key for storing refresh tokens.
+const refreshTokenKey contextKey = "refresh_token"
+
+// WithRefreshToken returns a new context with the refresh token stored.
+// This is used by the MCP server to pass user-specific tokens to the People API service.
+func WithRefreshToken(ctx context.Context, refreshToken string) context.Context {
+	return context.WithValue(ctx, refreshTokenKey, refreshToken)
+}
+
+// GetRefreshTokenFromContext retrieves the refresh token from context, if present.
+func GetRefreshTokenFromContext(ctx context.Context) (string, bool) {
+	token, ok := ctx.Value(refreshTokenKey).(string)
+	return token, ok
+}
+
 const (
 	// CredentialsFile is the name of the OAuth credentials file.
 	CredentialsFile = "google_credentials.json"
@@ -50,6 +68,8 @@ func GetCredentialsPath() string {
 }
 
 // GetClient returns an HTTP client with OAuth2 authentication.
+// If a refresh token is present in the context (via WithRefreshToken), it uses that token.
+// Otherwise, it falls back to the token stored on disk.
 func GetClient(ctx context.Context) (*http.Client, error) {
 	credPath := filepath.Join(GetCredentialsPath(), CredentialsFile)
 	tokenPath := filepath.Join(GetCredentialsPath(), TokenFile)
@@ -64,6 +84,15 @@ func GetClient(ctx context.Context) (*http.Client, error) {
 		return nil, fmt.Errorf("unable to parse credentials: %w", err)
 	}
 
+	// Check if a refresh token is provided via context (for MCP server use)
+	if refreshToken, ok := GetRefreshTokenFromContext(ctx); ok && refreshToken != "" {
+		token := &oauth2.Token{
+			RefreshToken: refreshToken,
+		}
+		return config.Client(ctx, token), nil
+	}
+
+	// Fall back to token from file
 	token, err := tokenFromFile(tokenPath)
 	if err != nil {
 		token, err = getTokenFromWeb(config)

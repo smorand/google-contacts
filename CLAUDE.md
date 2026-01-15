@@ -306,12 +306,100 @@ google-contacts mcp
 # Start on custom port
 google-contacts mcp --port 3000
 
-# Start with API key authentication
+# Start with static API key authentication (for local development)
 google-contacts mcp --api-key "your-secret-key"
+
+# Start with Firestore-based API key validation (for production)
+google-contacts mcp --firestore-project "my-gcp-project"
 
 # Bind to all interfaces (for remote access)
 google-contacts mcp --host 0.0.0.0 --port 8080
 ```
+
+### Authentication
+
+The MCP server supports three authentication modes:
+
+#### 1. No Authentication (Default)
+
+When neither `--api-key` nor `--firestore-project` is provided, the server allows unauthenticated access. This is suitable for local development where the CLI uses the local OAuth token file (`~/.credentials/google_token.json`).
+
+#### 2. Static API Key (`--api-key`)
+
+For simple authentication, provide a static API key via the command line:
+
+```bash
+google-contacts mcp --api-key "my-secret-key-123"
+```
+
+Clients must include the API key in the `Authorization` header:
+
+```bash
+curl -X POST http://localhost:8080/ \
+  -H "Authorization: Bearer my-secret-key-123" \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"ping"}}'
+```
+
+With static API key authentication, the server uses the local OAuth token file for People API access.
+
+#### 3. Firestore API Keys (`--firestore-project`)
+
+For production deployments with multiple users, use Firestore-based API key validation:
+
+```bash
+google-contacts mcp --firestore-project "my-gcp-project"
+```
+
+**Firestore Collection Structure:**
+
+Collection: `api_keys`
+Document ID: The API key itself (e.g., `user-abc-key-123`)
+
+```go
+// APIKeyDocument structure in Firestore
+type APIKeyDocument struct {
+    RefreshToken string `firestore:"refresh_token"`    // Required: OAuth refresh token
+    UserEmail    string `firestore:"user_email"`       // Optional: user identifier
+    CreatedAt    string `firestore:"created_at"`       // Optional: creation timestamp
+    Description  string `firestore:"description"`      // Optional: key description
+}
+```
+
+**Example Firestore document:**
+
+```json
+{
+  "refresh_token": "1//0gxxxxxx-xxxxxxxx",
+  "user_email": "user@example.com",
+  "created_at": "2026-01-15T10:00:00Z",
+  "description": "MCP access for user's AI assistant"
+}
+```
+
+When a request arrives with a valid API key from Firestore, the server injects the associated `refresh_token` into the context. This token is then used for People API authentication, enabling per-user contact management.
+
+**Authentication Flow:**
+
+1. Client sends request with `Authorization: Bearer <api_key>`
+2. Server looks up `api_keys/<api_key>` document in Firestore
+3. If found, extracts `refresh_token` from document
+4. Injects token into context via `auth.WithRefreshToken(ctx, token)`
+5. People API service uses this token for authenticated requests
+
+#### Context Token Injection
+
+The `pkg/auth` package supports token injection via context:
+
+```go
+// Inject a refresh token into context
+ctx = auth.WithRefreshToken(ctx, refreshToken)
+
+// The People API service will use this token instead of the local file
+srv, err := contacts.GetPeopleService(ctx)
+```
+
+This allows the MCP server to handle requests from multiple users, each with their own OAuth credentials stored in Firestore.
 
 ### Available Tools
 

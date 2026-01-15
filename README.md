@@ -427,8 +427,11 @@ google-contacts mcp
 # Start on custom port
 google-contacts mcp --port 3000
 
-# Start with API key authentication
+# Start with static API key authentication (for local dev)
 google-contacts mcp --api-key "your-secret-key"
+
+# Start with Firestore-based API keys (for production/multi-user)
+google-contacts mcp --firestore-project "my-gcp-project"
 
 # Bind to all interfaces (for remote access)
 google-contacts mcp --host 0.0.0.0 --port 8080
@@ -441,6 +444,20 @@ google-contacts mcp --host 0.0.0.0 --port 8080
 | `--host` | `-H` | localhost | Host to bind to |
 | `--api-key` | | | Static API key for authentication |
 | `--firestore-project` | | | GCP project for Firestore API key validation |
+
+**Authentication Modes:**
+
+1. **No authentication** (default): When neither `--api-key` nor `--firestore-project` is set, all requests are allowed (uses local OAuth token)
+2. **Static API key**: Single shared key via `--api-key` flag (for local development)
+3. **Firestore API keys**: Per-user API keys stored in Firestore collection `api_keys` with associated OAuth refresh tokens (for multi-user production deployments)
+
+**Using authentication:**
+```bash
+curl -X POST http://localhost:8080/ \
+  -H "Authorization: Bearer your-api-key" \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"ping"}}'
+```
 
 **Available tools:**
 | Tool | Description |
