@@ -1,61 +1,19 @@
-# Google Contacts Project - User Stories
-# This file includes both:
-# - Stories for aligning email-manager to golang skill conventions
-# - Stories for the new google-contacts application
-#
-# Credentials Strategy: Duplicated auth code with unified scopes
-# Both applications have their own pkg/auth/ with IDENTICAL code containing:
-# - Gmail scopes (for email-manager)
-# - Contacts scopes (for google-contacts)
-# Both use the same token file: ~/.credentials/google_token.json
-# This ensures single OAuth consent for both apps.
-
-# =============================================================================
-# PHASE 1: EMAIL-MANAGER ALIGNMENT (to golang skill structure)
-# =============================================================================
-
 - id: US-00001
-  title: "email-manager: Restructure to golang skill layout"
+  title: 'email-manager: Restructure to golang skill layout'
   priority: 1
-  description: |
-    Restructure email-manager project to follow golang skill conventions.
-
-    Current structure (non-standard):
-    ```
-    email-manager/
-    ├── src/
-    │   ├── main.go
-    │   ├── cli.go
-    │   ├── auth.go
-    │   ├── go.mod
-    │   └── go.sum
-    ```
-
-    Target structure (golang skill compliant):
-    ```
-    email-manager/
-    ├── go.mod              # Module at root
-    ├── go.sum
-    ├── cmd/
-    │   └── email-manager/
-    │       └── main.go     # Entry point only
-    ├── internal/
-    │   ├── cli/
-    │   │   └── cli.go      # CLI commands
-    │   └── gmail/
-    │       └── service.go  # Gmail API service
-    └── pkg/
-        └── auth/
-            └── auth.go     # OAuth2 authentication (will be duplicated)
-    ```
-
-    Acceptance criteria:
-    - go.mod moved to project root with correct module path
-    - Entry point in cmd/email-manager/main.go (minimal, just wiring)
-    - Business logic in internal/ packages
-    - Auth code in pkg/auth/ (prepared for duplication to google-contacts)
-    - All existing functionality preserved
-    - make build && make test pass
+  description: "Restructure email-manager project to follow golang skill conventions.\n\
+    \nCurrent structure (non-standard):\n```\nemail-manager/\n├── src/\n│   ├── main.go\n\
+    │   ├── cli.go\n│   ├── auth.go\n│   ├── go.mod\n│   └── go.sum\n```\n\nTarget\
+    \ structure (golang skill compliant):\n```\nemail-manager/\n├── go.mod       \
+    \       # Module at root\n├── go.sum\n├── cmd/\n│   └── email-manager/\n│    \
+    \   └── main.go     # Entry point only\n├── internal/\n│   ├── cli/\n│   │   └──\
+    \ cli.go      # CLI commands\n│   └── gmail/\n│       └── service.go  # Gmail\
+    \ API service\n└── pkg/\n    └── auth/\n        └── auth.go     # OAuth2 authentication\
+    \ (will be duplicated)\n```\n\nAcceptance criteria:\n- go.mod moved to project\
+    \ root with correct module path\n- Entry point in cmd/email-manager/main.go (minimal,\
+    \ just wiring)\n- Business logic in internal/ packages\n- Auth code in pkg/auth/\
+    \ (prepared for duplication to google-contacts)\n- All existing functionality\
+    \ preserved\n- make build && make test pass\n"
   tests:
   - go.mod exists at project root (not in src/)
   - cmd/email-manager/main.go exists and is minimal entry point
@@ -67,36 +25,56 @@
   - ./bin/email-manager --help shows usage
   - all existing commands still work (send, list, get, search, etc.)
   passes: true
-
 - id: US-00002
-  title: "email-manager: Add People API scopes for unified credentials"
+  title: 'email-manager: Add People API scopes for unified credentials'
   priority: 2
-  description: |
-    Extend email-manager OAuth2 configuration to include Google People API scopes.
+  description: 'Extend email-manager OAuth2 configuration to include Google People
+    API scopes.
+
     This enables a single OAuth consent for both email-manager and google-contacts.
 
+
     Current scopes (Gmail only):
+
     - gmail.GmailModifyScope
+
     - gmail.GmailSendScope
+
     - gmail.GmailLabelsScope
 
+
     New scopes to add (People API):
+
     - people.ContactsScope (read/write contacts)
+
     - people.ContactsOtherReadonlyScope (read other contacts)
 
+
     IMPORTANT: Adding new scopes will require user re-authorization.
+
     The token file should be deleted to force re-auth with combined scopes.
 
+
     The pkg/auth/auth.go will contain ALL scopes (Gmail + Contacts) so that:
+
     - email-manager uses Gmail scopes from the unified token
+
     - google-contacts uses Contacts scopes from the same token
+
     - User only authorizes once for both apps
 
+
     Acceptance criteria:
+
     - People API scopes added to pkg/auth/auth.go
+
     - Token file path remains ~/.credentials/google_token.json
+
     - Re-authorization flow works correctly
+
     - Gmail functionality still works after re-auth
+
+    '
   tests:
   - pkg/auth/auth.go includes people.ContactsScope
   - pkg/auth/auth.go includes people.ContactsOtherReadonlyScope
@@ -104,56 +82,24 @@
   - after deleting token, re-auth prompts for Gmail AND Contacts permissions
   - email-manager list command works after re-auth
   passes: true
-
-# =============================================================================
-# PHASE 2: GOOGLE-CONTACTS PROJECT INITIALIZATION
-# =============================================================================
-
 - id: US-00003
-  title: "google-contacts: Project initialization with duplicated auth"
+  title: 'google-contacts: Project initialization with duplicated auth'
   priority: 3
-  description: |
-    Initialize the google-contacts project following golang skill conventions.
-    Duplicate the auth code from email-manager (pkg/auth/auth.go).
-
-    Project structure:
-    ```
-    google-contacts/
-    ├── go.mod
-    ├── go.sum
-    ├── Makefile
-    ├── README.md
-    ├── CLAUDE.md
-    ├── .gitignore
-    ├── cmd/
-    │   └── google-contacts/
-    │       └── main.go
-    ├── internal/
-    │   └── cli/
-    │       └── cli.go
-    └── pkg/
-        └── auth/
-            └── auth.go     # DUPLICATED from email-manager (identical)
-    ```
-
-    The pkg/auth/auth.go must be IDENTICAL to email-manager's version:
-    - Same scopes (Gmail + Contacts)
-    - Same token file path (~/.credentials/google_token.json)
-    - Same credentials file path (~/.credentials/google_credentials.json)
-
-    Features:
-    - Cobra CLI framework
-    - Basic --help and --version commands
-    - Git repository initialized
-    - GitHub repository created (smorand/google-contacts, public)
-
-    Acceptance criteria:
-    - Project compiles and runs
-    - pkg/auth/auth.go is identical to email-manager's version
-    - --help shows usage information
-    - --version shows version string
-    - Git initialized with initial commit
-    - GitHub repo created and pushed
+  description: "Initialize the google-contacts project following golang skill conventions.\n\
+    Duplicate the auth code from email-manager (pkg/auth/auth.go).\n\nProject structure:\n\
+    ```\ngoogle-contacts/\n├── go.mod\n├── go.sum\n├── Makefile\n├── README.md\n├──\
+    \ CLAUDE.md\n├── .gitignore\n├── cmd/\n│   └── google-contacts/\n│       └── main.go\n\
+    ├── internal/\n│   └── cli/\n│       └── cli.go\n└── pkg/\n    └── auth/\n   \
+    \     └── auth.go     # DUPLICATED from email-manager (identical)\n```\n\nThe\
+    \ pkg/auth/auth.go must be IDENTICAL to email-manager's version:\n- Same scopes\
+    \ (Gmail + Contacts)\n- Same token file path (~/.credentials/google_token.json)\n\
+    - Same credentials file path (~/.credentials/google_credentials.json)\n\nFeatures:\n\
+    - Cobra CLI framework\n- Basic --help and --version commands\n- Git repository\
+    \ initialized\n- GitHub repository created (smorand/google-contacts, public)\n\
+    \nAcceptance criteria:\n- Project compiles and runs\n- pkg/auth/auth.go is identical\
+    \ to email-manager's version\n- --help shows usage information\n- --version shows\
+    \ version string\n- Git initialized with initial commit\n- GitHub repo created\
+    \ and pushed\n"
   tests:
   - go.mod exists at project root
   - cmd/google-contacts/main.go exists
@@ -169,34 +115,19 @@
   - git log shows initial commit
   - gh repo view smorand/google-contacts succeeds
   passes: true
-
 - id: US-00004
-  title: "google-contacts: People API service initialization"
+  title: 'google-contacts: People API service initialization'
   priority: 4
-  description: |
-    Implement Google People API service initialization using the duplicated auth.
-
-    Implementation:
-    - Import auth package from local pkg/auth
-    - Create People API service wrapper in internal/contacts/
-    - Handle authentication errors gracefully
-    - Test connection with a simple API call
-
-    The service should be created lazily on first command execution,
-    not at application startup.
-
-    File structure:
-    ```
-    internal/
-    └── contacts/
-        └── service.go    # People API service wrapper
-    ```
-
-    Acceptance criteria:
-    - People API service can be created
-    - Auth flow works (browser opens for first-time auth if no token)
-    - If token exists (from email-manager), no re-auth needed
-    - Proper error messages for auth failures
+  description: "Implement Google People API service initialization using the duplicated\
+    \ auth.\n\nImplementation:\n- Import auth package from local pkg/auth\n- Create\
+    \ People API service wrapper in internal/contacts/\n- Handle authentication errors\
+    \ gracefully\n- Test connection with a simple API call\n\nThe service should be\
+    \ created lazily on first command execution,\nnot at application startup.\n\n\
+    File structure:\n```\ninternal/\n└── contacts/\n    └── service.go    # People\
+    \ API service wrapper\n```\n\nAcceptance criteria:\n- People API service can be\
+    \ created\n- Auth flow works (browser opens for first-time auth if no token)\n\
+    - If token exists (from email-manager), no re-auth needed\n- Proper error messages\
+    \ for auth failures\n"
   tests:
   - internal/contacts/service.go exists
   - GetPeopleService(ctx) function is implemented
@@ -204,41 +135,56 @@
   - if token exists from email-manager, no auth prompt appears
   - if no token, running any command triggers auth flow
   passes: true
-
-# =============================================================================
-# PHASE 3: GOOGLE-CONTACTS CORE FEATURES
-# =============================================================================
-
 - id: US-00005
-  title: "google-contacts: Create contact command"
+  title: 'google-contacts: Create contact command'
   priority: 5
-  description: |
-    Implement the 'create' command to add new contacts.
+  description: 'Implement the ''create'' command to add new contacts.
+
 
     Command: google-contacts create [flags]
 
+
     Required flags:
+
     - --firstname, -f: First name (required)
+
     - --lastname, -l: Last name (required)
+
     - --phone, -p: Phone number (required)
 
+
     Important flags:
+
     - --company, -c: Company name (highly recommended)
 
+
     Optional flags:
+
     - --email, -e: Email address
+
     - --position, -r: Role/position at company
+
     - --notes, -n: Notes about the contact
 
+
     Output:
+
     - Success: Display created contact ID and summary
+
     - Error: Clear error message
 
+
     Acceptance criteria:
+
     - Contact created in Google Contacts
+
     - All fields properly mapped to People API
+
     - Phone number formatted correctly
+
     - Returns contact ID for reference
+
+    '
   tests:
   - google-contacts create --help shows all flags
   - create with only required fields succeeds
@@ -247,38 +193,59 @@
   - created contact visible in Google Contacts web UI
   - output shows contact ID
   passes: true
-
 - id: US-00006
-  title: "google-contacts: Search contacts command"
+  title: 'google-contacts: Search contacts command'
   priority: 6
-  description: |
-    Implement the 'search' command to find contacts.
+  description: 'Implement the ''search'' command to find contacts.
+
 
     Command: google-contacts search <query>
 
+
     Search capabilities:
+
     - By name (partial match)
+
     - By email (partial match)
+
     - By phone number
+
     - By company name
 
+
     Output behavior:
+
     - Multiple results: Show list with main info (name, phone, company, email)
+
     - Single result: Show full contact details automatically
+
     - No results: Clear message
 
+
     List format (multiple results):
-    ```
-    ID          | Name           | Phone        | Company    | Email
-    c123456789  | John Doe       | +33612345678 | Acme Inc   | john@acme.com
-    c987654321  | John Smith     | +33698765432 | Tech Corp  | john@tech.com
+
     ```
 
+    ID          | Name           | Phone        | Company    | Email
+
+    c123456789  | John Doe       | +33612345678 | Acme Inc   | john@acme.com
+
+    c987654321  | John Smith     | +33698765432 | Tech Corp  | john@tech.com
+
+    ```
+
+
     Acceptance criteria:
+
     - Search by any field works
+
     - Partial matches supported
+
     - Single result shows full details
+
     - Multiple results show summary list
+
+    '
   tests:
   - google-contacts search --help shows usage
   - search by name returns matching contacts
@@ -290,34 +257,51 @@
   - multiple results display summary list
   - no results shows appropriate message
   passes: true
-
 - id: US-00007
-  title: "google-contacts: Show contact details command"
+  title: 'google-contacts: Show contact details command'
   priority: 7
-  description: |
-    Implement the 'show' command to display full contact information.
+  description: 'Implement the ''show'' command to display full contact information.
+
 
     Command: google-contacts show <contact-id>
 
+
     The contact ID is the Google Contact resource name (e.g., "people/c123456789")
+
     or just the ID part ("c123456789").
 
+
     Full information display:
+
     - Name (first, last)
+
     - All phone numbers (with labels: mobile, work, home)
+
     - All email addresses (with labels)
+
     - Company and position
+
     - Notes
+
     - Google Contact ID
+
     - Creation/modification dates (if available)
+
 
     Format: Human-readable, possibly with colors for labels.
 
+
     Acceptance criteria:
+
     - Contact retrieved by ID
+
     - All available fields displayed
+
     - Clear formatting with labels
+
     - Error if contact not found
+
+    '
   tests:
   - google-contacts show --help shows usage
   - show with valid ID displays full contact
@@ -327,38 +311,53 @@
   - show displays notes
   - show with invalid ID shows error
   passes: true
-
-# =============================================================================
-# PHASE 4: POLISH AND DOCUMENTATION
-# =============================================================================
-
 - id: US-00008
-  title: "google-contacts: Complete documentation"
+  title: 'google-contacts: Complete documentation'
   priority: 8
-  description: |
-    Finalize all project documentation.
+  description: 'Finalize all project documentation.
+
 
     README.md should include:
+
     - Project description and purpose
+
     - Prerequisites (Go, Google Cloud project, credentials)
+
     - Installation instructions
+
     - Configuration (credentials setup)
+
     - Usage examples for all commands
+
     - Explanation of credential sharing with email-manager
+
     - Note about unified scopes and single OAuth consent
 
+
     CLAUDE.md should include:
+
     - Project structure overview
+
     - Key files and their purposes
+
     - Common development tasks
+
     - Testing instructions
+
     - API integration details
+
     - Note about duplicated auth code and why
 
+
     Acceptance criteria:
+
     - README.md is complete and accurate
+
     - CLAUDE.md enables efficient AI collaboration
+
     - All commands documented with examples
+
+    '
   tests:
   - README.md contains installation instructions
   - README.md contains usage examples for create, search, show
@@ -368,74 +367,61 @@
   - CLAUDE.md contains development workflow
   - CLAUDE.md mentions duplicated auth code rationale
   passes: true
-
 - id: US-00009
-  title: "google-contacts: Unit tests"
+  title: 'google-contacts: Unit tests'
   priority: 9
-  description: |
-    Implement unit tests for core functionality.
+  description: 'Implement unit tests for core functionality.
+
 
     Test coverage:
+
     - CLI argument parsing
+
     - Contact field validation
+
     - Phone number formatting
+
     - Search query handling
+
     - Error handling paths
 
+
     Use standard library testing (if + t.Errorf pattern).
+
     Mock external API calls for unit tests.
 
+
     Acceptance criteria:
+
     - Tests cover main code paths
+
     - make test passes
+
     - No external API calls in unit tests
+
+    '
   tests:
   - internal/cli/cli_test.go exists
   - internal/contacts/service_test.go exists
   - make test passes with no errors
   - tests run without network calls
   passes: true
-
-# =============================================================================
-# PHASE 5: GOOGLE-CONTACTS SKILL CREATION
-# =============================================================================
-
 - id: US-00010
-  title: "google-contacts: Create skill in ~/.claude/skills"
+  title: 'google-contacts: Create skill in ~/.claude/skills'
   priority: 10
-  description: |
-    Create a new google-contacts skill in the global Claude skills directory.
-    This skill will allow Claude to interact with Google Contacts via the CLI.
-
-    Skill structure:
-    ```
-    ~/.claude/skills/google-contacts/
-    ├── SKILL.md           # Main skill definition with commands and usage
-    └── scripts/
-        └── google-contacts  # Symlink to installed binary
-    ```
-
-    The SKILL.md should include:
-    - Skill metadata (name, description, trigger phrases)
-    - Available commands (create, search, show)
-    - Usage examples for each command
-    - Screenshot processing workflow
-    - Integration with existing CLI
-
-    Trigger phrases (when to use this skill):
-    - "Create a contact"
-    - "Add a new contact"
-    - "Search for contact"
-    - "Find contact"
-    - "Show contact details"
-    - "Get contact info"
-    - "Create contact from screenshot"
-
-    Acceptance criteria:
-    - Skill directory created at ~/.claude/skills/google-contacts/
-    - SKILL.md defines all commands and usage patterns
-    - Symlink to binary works correctly
-    - Skill is recognized by Claude
+  description: "Create a new google-contacts skill in the global Claude skills directory.\n\
+    This skill will allow Claude to interact with Google Contacts via the CLI.\n\n\
+    Skill structure:\n```\n~/.claude/skills/google-contacts/\n├── SKILL.md       \
+    \    # Main skill definition with commands and usage\n└── scripts/\n    └── google-contacts\
+    \  # Symlink to installed binary\n```\n\nThe SKILL.md should include:\n- Skill\
+    \ metadata (name, description, trigger phrases)\n- Available commands (create,\
+    \ search, show)\n- Usage examples for each command\n- Screenshot processing workflow\n\
+    - Integration with existing CLI\n\nTrigger phrases (when to use this skill):\n\
+    - \"Create a contact\"\n- \"Add a new contact\"\n- \"Search for contact\"\n- \"\
+    Find contact\"\n- \"Show contact details\"\n- \"Get contact info\"\n- \"Create\
+    \ contact from screenshot\"\n\nAcceptance criteria:\n- Skill directory created\
+    \ at ~/.claude/skills/google-contacts/\n- SKILL.md defines all commands and usage\
+    \ patterns\n- Symlink to binary works correctly\n- Skill is recognized by Claude\n"
   tests:
   - ~/.claude/skills/google-contacts/ directory exists
   - ~/.claude/skills/google-contacts/SKILL.md exists
@@ -444,150 +430,228 @@
   - scripts/google-contacts symlink points to correct binary
   - skill is accessible via Claude's Skill tool
   passes: true
-
 - id: US-00011
-  title: "google-contacts skill: Create contact from basic information"
+  title: 'google-contacts skill: Create contact from basic information'
   priority: 11
-  description: |
-    Document and enable creating contacts from basic information.
+  description: 'Document and enable creating contacts from basic information.
+
 
     The skill should handle natural language requests like:
+
     - "Create a contact for John Doe, phone +33612345678, at Acme Corp"
+
     - "Add contact: Marie Dupont, 0612345678, marie@example.com"
+
     - "New contact Jean Martin from TechCorp, +33612345678, CTO"
 
+
     Skill workflow:
-    1. Parse user request to extract: first name, last name, phone, email, company, position
+
+    1. Parse user request to extract: first name, last name, phone, email, company,
+    position
+
     2. Validate required fields (first name, last name, phone)
+
     3. Execute google-contacts create command with extracted values
+
     4. Return confirmation with contact ID
 
+
     SKILL.md should include:
+
     - Natural language parsing examples
+
     - Command construction patterns
+
     - Error handling for missing required fields
 
+
     Acceptance criteria:
+
     - SKILL.md documents natural language parsing for contact creation
+
     - Examples cover various input formats
+
     - Required vs optional fields clearly documented
+
+    '
   tests:
   - SKILL.md contains create contact workflow
   - SKILL.md shows examples of natural language parsing
   - SKILL.md documents required fields (first name, last name, phone)
   - SKILL.md documents optional fields (email, company, position, notes)
   passes: true
-
 - id: US-00012
-  title: "google-contacts skill: Create contact from screenshot"
+  title: 'google-contacts skill: Create contact from screenshot'
   priority: 12
-  description: |
-    Document workflow for creating contacts from screenshots of business cards,
+  description: 'Document workflow for creating contacts from screenshots of business
+    cards,
+
     email signatures, or any image containing contact information.
 
+
     Workflow:
+
     1. User provides screenshot path or says "from this screenshot"
+
     2. Claude reads the image file using the Read tool
-    3. Claude extracts contact information from the image (name, phone, email, company, position)
+
+    3. Claude extracts contact information from the image (name, phone, email, company,
+    position)
+
     4. Claude confirms extracted data with user
+
     5. Claude executes google-contacts create command
+
     6. Return confirmation with contact ID
 
+
     SKILL.md should include:
+
     - Screenshot reading workflow using Read tool
+
     - Data extraction patterns from images
+
     - Confirmation step before creation
+
     - Common image sources (business cards, email signatures, LinkedIn)
 
+
     User requests:
+
     - "Create contact from this screenshot: /path/to/image.png"
+
     - "Add the contact from this business card"
+
     - "Extract contact from ~/Downloads/screenshot.png and add it"
 
+
     Acceptance criteria:
+
     - SKILL.md documents screenshot workflow
+
     - Examples show image path handling
+
     - Confirmation step is included before creation
+
     - Handles various image sources
+
+    '
   tests:
   - SKILL.md contains screenshot workflow section
   - SKILL.md shows how to use Read tool for images
   - SKILL.md documents confirmation step
   - SKILL.md handles ~/Downloads/ paths
   passes: true
-
 - id: US-00013
-  title: "google-contacts skill: Search and retrieve contacts"
+  title: 'google-contacts skill: Search and retrieve contacts'
   priority: 13
-  description: |
-    Document workflow for searching and retrieving contact information.
+  description: 'Document workflow for searching and retrieving contact information.
+
 
     Search scenarios:
+
     - "Find contact John" -> search by name
+
     - "Search for contacts at Acme Corp" -> search by company
+
     - "Who has phone number 0612345678" -> search by phone
-    - "Show me John Doe's contact" -> search + show if single result
+
+    - "Show me John Doe''s contact" -> search + show if single result
+
 
     SKILL.md should include:
+
     - Search command usage
+
     - Handling single vs multiple results
+
     - Auto-show for single results
+
     - Show command for detailed view
 
+
     Show scenarios:
+
     - "Show contact details for c123456789"
+
     - "Get full info for John Doe" (after search)
-    - "What's John's phone number" -> search + extract specific field
+
+    - "What''s John''s phone number" -> search + extract specific field
+
 
     Acceptance criteria:
+
     - SKILL.md documents search workflow
+
     - SKILL.md documents show command
+
     - Examples for single and multiple results
+
     - Field extraction from results documented
+
+    '
   tests:
   - SKILL.md contains search workflow section
   - SKILL.md contains show command section
   - SKILL.md handles single result auto-show
   - SKILL.md shows field extraction examples
   passes: true
-
-# =============================================================================
-# PHASE 6: ENHANCED FEATURES & SKILL IMPROVEMENTS
-# =============================================================================
-
 - id: US-00014
-  title: "google-contacts: Delete contact command"
+  title: 'google-contacts: Delete contact command'
   priority: 14
-  description: |
-    Implement the 'delete' command to remove contacts.
+  description: 'Implement the ''delete'' command to remove contacts.
+
 
     Command: google-contacts delete <contact-id>
 
+
     The contact ID is the Google Contact resource name (e.g., "people/c123456789")
+
     or just the ID part ("c123456789").
 
+
     Safety features:
+
     - Display contact summary before deletion
+
     - Require --force flag for immediate deletion
+
     - Without --force, prompt for confirmation (Y/n)
 
+
     Flags:
+
     - --force, -f: Skip confirmation prompt
 
+
     Output:
+
     - Success: Display deleted contact summary
+
     - Error: Clear error message if contact not found
 
+
     Implementation:
+
     - Add DeleteContact method to internal/contacts/service.go
+
     - Add delete command to internal/cli/cli.go
+
     - Use People API DeleteContact method
 
+
     Acceptance criteria:
+
     - Contact deleted from Google Contacts
+
     - Confirmation required unless --force used
+
     - Clear error if contact not found
+
     - Contact no longer visible in Google Contacts web UI after deletion
+
+    '
   tests:
   - google-contacts delete --help shows usage
   - delete without ID shows error
@@ -597,43 +661,68 @@
   - deleted contact no longer appears in search results
   - deleted contact no longer visible in Google Contacts web UI
   passes: true
-
 - id: US-00015
-  title: "google-contacts: Update contact command"
+  title: 'google-contacts: Update contact command'
   priority: 15
-  description: |
-    Implement the 'update' command to modify existing contacts.
+  description: 'Implement the ''update'' command to modify existing contacts.
+
 
     Command: google-contacts update <contact-id> [flags]
 
+
     The contact ID is the Google Contact resource name (e.g., "people/c123456789")
+
     or just the ID part ("c123456789").
 
+
     Flags (all optional, only specified fields are updated):
+
     - --firstname, -f: Update first name
+
     - --lastname, -l: Update last name
+
     - --phone, -p: Update primary phone (replaces first phone)
+
     - --email, -e: Update primary email (replaces first email)
+
     - --company, -c: Update company name
+
     - --position, -r: Update role/position
+
     - --notes, -n: Update notes
 
+
     Behavior:
+
     - Fetch current contact data first
+
     - Merge specified changes with existing data
+
     - Only modify fields that are explicitly provided
+
     - Display updated contact summary
 
+
     Implementation:
+
     - Add UpdateContact method to internal/contacts/service.go
+
     - Add update command to internal/cli/cli.go
+
     - Use People API updateContact method with updatePersonFields
 
+
     Acceptance criteria:
+
     - Contact updated in Google Contacts
+
     - Only specified fields are modified
+
     - Unspecified fields remain unchanged
+
     - Updated contact visible with new data in Google Contacts web UI
+
+    '
   tests:
   - google-contacts update --help shows all flags
   - update without ID shows error
@@ -642,50 +731,82 @@
   - update preserves unspecified fields
   - updated contact visible in Google Contacts web UI with changes
   passes: true
-
 - id: US-00016
-  title: "google-contacts: Multiple phones support in create/update"
+  title: 'google-contacts: Multiple phones support in create/update'
   priority: 16
-  description: |
-    Add support for multiple phone numbers with types (labels) in create and update commands.
+  description: 'Add support for multiple phone numbers with types (labels) in create
+    and update commands.
+
 
     Phone types supported:
+
     - mobile: Mobile phone (default if no type specified)
+
     - work: Work phone
+
     - home: Home phone
+
     - main: Main phone
+
     - other: Other phone
 
+
     Syntax for --phone flag:
+
     - Single phone: --phone "+33612345678" (type defaults to mobile)
+
     - Phone with type: --phone "mobile:+33612345678"
+
     - Multiple phones: --phone "mobile:+33612345678" --phone "work:+33123456789"
 
+
     For create command:
+
     - Accept multiple --phone flags
+
     - Parse type:number format
+
     - Default to "mobile" if no type prefix
 
+
     For update command:
+
     - --phone replaces all existing phones
+
     - --add-phone adds a new phone without removing existing ones
+
     - --remove-phone removes a specific phone by value
 
+
     Additional flags for update:
+
     - --add-phone: Add a phone number (can be repeated)
+
     - --remove-phone: Remove a phone number by value (can be repeated)
 
+
     Implementation:
+
     - Modify ContactInput struct to support []PhoneEntry
+
     - Update create command to parse multiple phones
+
     - Add phone management flags to update command
+
     - Update service methods to handle multiple phones
 
+
     Acceptance criteria:
+
     - Create command accepts multiple phones with types
+
     - Update command can add/remove individual phones
+
     - Phone types are correctly saved in Google Contacts
+
     - All phones visible with correct labels in show command
+
+    '
   tests:
   - create with single phone works (defaults to mobile)
   - create with typed phone works (e.g., work:+33123456789)
@@ -696,48 +817,78 @@
   - update --remove-phone removes specific phone
   - Google Contacts web UI shows all phones with correct labels
   passes: true
-
 - id: US-00017
-  title: "google-contacts: Multiple emails support in create/update"
+  title: 'google-contacts: Multiple emails support in create/update'
   priority: 17
-  description: |
-    Add support for multiple email addresses with types (labels) in create and update commands.
+  description: 'Add support for multiple email addresses with types (labels) in create
+    and update commands.
+
 
     Email types supported:
+
     - work: Work email (default if no type specified)
+
     - home: Personal email
+
     - other: Other email
 
+
     Syntax for --email flag:
+
     - Single email: --email "john@acme.com" (type defaults to work)
+
     - Email with type: --email "work:john@acme.com"
+
     - Multiple emails: --email "work:john@acme.com" --email "home:john@gmail.com"
 
+
     For create command:
+
     - Accept multiple --email flags
+
     - Parse type:value format
+
     - Default to "work" if no type prefix
 
+
     For update command:
+
     - --email replaces all existing emails
+
     - --add-email adds a new email without removing existing ones
+
     - --remove-email removes a specific email by value
 
+
     Additional flags for update:
+
     - --add-email: Add an email address (can be repeated)
+
     - --remove-email: Remove an email address by value (can be repeated)
 
+
     Implementation:
+
     - Modify ContactInput struct to support []EmailEntry
+
     - Update create command to parse multiple emails
+
     - Add email management flags to update command
+
     - Update service methods to handle multiple emails
 
+
     Acceptance criteria:
+
     - Create command accepts multiple emails with types
+
     - Update command can add/remove individual emails
+
     - Email types are correctly saved in Google Contacts
+
     - All emails visible with correct labels in show command
+
+    '
   tests:
   - create with single email works (defaults to work)
   - create with typed email works (e.g., home:john@gmail.com)
@@ -748,79 +899,42 @@
   - update --remove-email removes specific email
   - Google Contacts web UI shows all emails with correct labels
   passes: true
-
-# =============================================================================
-# PHASE 7: SKILL IMPROVEMENTS - NAME RECOGNITION & VALIDATION
-# =============================================================================
-
 - id: US-00018
-  title: "google-contacts skill: Name recognition improvements"
+  title: 'google-contacts skill: Name recognition improvements'
   priority: 18
-  description: |
-    Improve the skill's ability to correctly identify first name vs last name
-    when parsing contact information from text or images.
-
-    Problem:
-    - Names can be in different formats: "John DOE", "DOE John", "John Doe"
-    - Different cultures have different name order conventions
-    - All-caps often indicates the family name
-
-    Recognition rules to add in SKILL.md:
-    1. Full uppercase word is likely the family name (e.g., "Jean DUPONT" -> lastname=DUPONT)
-    2. In French context, family name often comes last
-    3. In Asian contexts (e.g., Japanese business cards), family name often comes first
-    4. When uncertain, express probability and ALWAYS ask for confirmation (US-00019)
-
-    Heuristics with confidence levels:
-    - If one word is ALL CAPS and others are Title Case: ALL CAPS = family name (HIGH confidence)
-      Example: "Sebastien LAURENT" -> firstname=Sebastien, lastname=Laurent (95% certain)
-    - If both words same case in French context: firstname lastname order (MEDIUM confidence)
-      Example: "Jean Dupont" -> firstname=Jean, lastname=Dupont (80% certain)
-    - If order is ambiguous or Asian name detected: (LOW confidence)
-      Example: "Takeshi Yamamoto" -> could be either order (50% certain)
-    - For more than 2 words, middle names go with first name unless specified
-
-    Probabilistic reasoning:
-    - HIGH confidence (>90%): Present the interpretation but still require confirmation
-    - MEDIUM confidence (60-90%): Present interpretation with explanation of reasoning
-    - LOW confidence (<60%): Present multiple possibilities and ask user to choose
-
-    Example validation prompts by confidence:
-
-    HIGH confidence:
-    ```
-    J'ai identifié : Prénom=Sebastien, Nom=LAURENT
-    (Le nom en majuscules indique généralement le nom de famille)
-    Est-ce correct ?
-    ```
-
-    MEDIUM confidence:
-    ```
-    J'ai identifié : Prénom=Jean, Nom=Dupont
-    (Ordre français standard prénom-nom)
-    Est-ce correct ?
-    ```
-
-    LOW confidence:
-    ```
-    Je ne suis pas certain de l'ordre du nom "Takeshi Yamamoto".
-    Quel est le prénom et quel est le nom de famille ?
-    - Option 1: Prénom=Takeshi, Nom=Yamamoto
-    - Option 2: Prénom=Yamamoto, Nom=Takeshi
-    ```
-
-    SKILL.md updates:
-    - Add "Name Recognition" section with these rules
-    - Add confidence level explanations
-    - Add examples of probabilistic reasoning
-    - Emphasize ALWAYS confirming before creating contact (link to US-00019)
-
-    Acceptance criteria:
-    - SKILL.md documents name recognition heuristics
-    - ALL CAPS rule is clearly explained with examples
-    - Confidence levels documented (HIGH/MEDIUM/LOW)
-    - Probabilistic reasoning examples provided
-    - All cases require confirmation (mandatory per US-00019)
+  description: "Improve the skill's ability to correctly identify first name vs last\
+    \ name\nwhen parsing contact information from text or images.\n\nProblem:\n- Names\
+    \ can be in different formats: \"John DOE\", \"DOE John\", \"John Doe\"\n- Different\
+    \ cultures have different name order conventions\n- All-caps often indicates the\
+    \ family name\n\nRecognition rules to add in SKILL.md:\n1. Full uppercase word\
+    \ is likely the family name (e.g., \"Jean DUPONT\" -> lastname=DUPONT)\n2. In\
+    \ French context, family name often comes last\n3. In Asian contexts (e.g., Japanese\
+    \ business cards), family name often comes first\n4. When uncertain, express probability\
+    \ and ALWAYS ask for confirmation (US-00019)\n\nHeuristics with confidence levels:\n\
+    - If one word is ALL CAPS and others are Title Case: ALL CAPS = family name (HIGH\
+    \ confidence)\n  Example: \"Sebastien LAURENT\" -> firstname=Sebastien, lastname=Laurent\
+    \ (95% certain)\n- If both words same case in French context: firstname lastname\
+    \ order (MEDIUM confidence)\n  Example: \"Jean Dupont\" -> firstname=Jean, lastname=Dupont\
+    \ (80% certain)\n- If order is ambiguous or Asian name detected: (LOW confidence)\n\
+    \  Example: \"Takeshi Yamamoto\" -> could be either order (50% certain)\n- For\
+    \ more than 2 words, middle names go with first name unless specified\n\nProbabilistic\
+    \ reasoning:\n- HIGH confidence (>90%): Present the interpretation but still require\
+    \ confirmation\n- MEDIUM confidence (60-90%): Present interpretation with explanation\
+    \ of reasoning\n- LOW confidence (<60%): Present multiple possibilities and ask\
+    \ user to choose\n\nExample validation prompts by confidence:\n\nHIGH confidence:\n\
+    ```\nJ'ai identifié : Prénom=Sebastien, Nom=LAURENT\n(Le nom en majuscules indique\
+    \ généralement le nom de famille)\nEst-ce correct ?\n```\n\nMEDIUM confidence:\n\
+    ```\nJ'ai identifié : Prénom=Jean, Nom=Dupont\n(Ordre français standard prénom-nom)\n\
+    Est-ce correct ?\n```\n\nLOW confidence:\n```\nJe ne suis pas certain de l'ordre\
+    \ du nom \"Takeshi Yamamoto\".\nQuel est le prénom et quel est le nom de famille\
+    \ ?\n- Option 1: Prénom=Takeshi, Nom=Yamamoto\n- Option 2: Prénom=Yamamoto, Nom=Takeshi\n\
+    ```\n\nSKILL.md updates:\n- Add \"Name Recognition\" section with these rules\n\
+    - Add confidence level explanations\n- Add examples of probabilistic reasoning\n\
+    - Emphasize ALWAYS confirming before creating contact (link to US-00019)\n\nAcceptance\
+    \ criteria:\n- SKILL.md documents name recognition heuristics\n- ALL CAPS rule\
+    \ is clearly explained with examples\n- Confidence levels documented (HIGH/MEDIUM/LOW)\n\
+    - Probabilistic reasoning examples provided\n- All cases require confirmation\
+    \ (mandatory per US-00019)\n"
   tests:
   - SKILL.md contains "Name Recognition" section
   - SKILL.md explains ALL CAPS = family name heuristic
@@ -829,56 +943,93 @@
   - SKILL.md shows probabilistic reasoning examples
   - SKILL.md emphasizes confirmation is ALWAYS required
   passes: true
-
 - id: US-00019
-  title: "google-contacts skill: Mandatory validation before contact creation"
+  title: 'google-contacts skill: Mandatory validation before contact creation'
   priority: 19
-  description: |
-    Update the skill to ALWAYS validate contact information with the user
+  description: 'Update the skill to ALWAYS validate contact information with the user
+
     before executing the create command. This prevents errors from incorrect
+
     parsing or OCR mistakes.
 
+
     Current problem:
+
     - Skill might create contacts with wrong name order
+
     - Screenshot OCR might misread characters
+
     - User might not notice errors until contact is already created
 
+
     Solution - Mandatory validation workflow:
+
     1. Parse/extract contact information
+
     2. ALWAYS display extracted data in a clear format
+
     3. ALWAYS ask user to confirm or correct
+
     4. Only execute create command after explicit confirmation
 
+
     Validation prompt format:
+
     ```
+
     📋 Contact à créer :
+
     ───────────────────
+
     Prénom    : Jean
+
     Nom       : Dupont
+
     Téléphone : +33 6 12 34 56 78 (mobile)
+
     Email     : jean@acme.com (work)
+
     Entreprise: Acme Corp
+
     Poste     : CTO
 
+
     Est-ce correct ? (oui/non/modifier)
+
     ```
 
+
     User responses:
-    - "oui" / "yes" / "ok" / "c'est bon" -> proceed with creation
+
+    - "oui" / "yes" / "ok" / "c''est bon" -> proceed with creation
+
     - "non" / "no" -> cancel
+
     - "modifier" / "change" + corrections -> update and re-validate
 
+
     SKILL.md updates:
+
     - Make validation step MANDATORY (not optional)
+
     - Add validation prompt format
+
     - Document how to handle corrections
+
     - Remove any workflow that skips validation
 
+
     Acceptance criteria:
+
     - SKILL.md makes validation mandatory before any create
+
     - Validation prompt format is clearly defined
+
     - User can confirm, cancel, or modify
+
     - No contact created without explicit user confirmation
+
+    '
   tests:
   - SKILL.md marks validation as MANDATORY
   - SKILL.md contains validation prompt format
@@ -887,47 +1038,77 @@
   - Screenshot workflow includes validation step
   - Natural language workflow includes validation step
   passes: true
-
 - id: US-00020
-  title: "google-contacts skill: Document delete and update workflows"
+  title: 'google-contacts skill: Document delete and update workflows'
   priority: 20
-  description: |
-    Update SKILL.md to document the new delete and update commands
+  description: 'Update SKILL.md to document the new delete and update commands
+
     once they are implemented (depends on US-00014, US-00015).
 
+
     Delete workflow:
+
     - Natural language: "Delete the contact for Jean Dupont"
+
     - First search for the contact
+
     - Show contact details and ask for confirmation
+
     - Execute delete command
+
     - Confirm deletion
 
+
     Update workflow:
-    - Natural language: "Update Jean's phone number to 0698765432"
+
+    - Natural language: "Update Jean''s phone number to 0698765432"
+
     - First search for the contact
+
     - Show current contact details
+
     - Show proposed changes
+
     - Ask for confirmation
+
     - Execute update command
+
     - Show updated contact
 
+
     SKILL.md sections to add:
+
     - "5. Supprimer un contact" / "Delete a contact"
+
     - "6. Modifier un contact" / "Update a contact"
+
     - Delete workflow with confirmation
+
     - Update workflow with validation
+
     - Natural language examples for both
 
+
     Safety considerations:
+
     - ALWAYS confirm before delete
+
     - ALWAYS show before/after for update
+
     - Provide undo guidance (re-create from memory for delete)
 
+
     Acceptance criteria:
+
     - SKILL.md documents delete command
+
     - SKILL.md documents update command
+
     - Both workflows include confirmation steps
+
     - Natural language examples provided
+
+    '
   tests:
   - SKILL.md contains delete section
   - SKILL.md contains update section
@@ -936,44 +1117,71 @@
   - Natural language examples for delete
   - Natural language examples for update
   passes: true
-
 - id: US-00021
-  title: "google-contacts skill: Document multiple phones/emails support"
+  title: 'google-contacts skill: Document multiple phones/emails support'
   priority: 21
-  description: |
-    Update SKILL.md to document support for multiple phones and emails
+  description: 'Update SKILL.md to document support for multiple phones and emails
+
     once implemented (depends on US-00016, US-00017).
 
+
     Phone types documentation:
+
     - mobile: Téléphone portable / Mobile phone
+
     - work: Téléphone professionnel / Work phone
+
     - home: Téléphone domicile / Home phone
+
     - main: Téléphone principal / Main phone
+
     - other: Autre / Other
+
 
     Email types documentation:
+
     - work: Email professionnel / Work email
+
     - home: Email personnel / Home email
+
     - other: Autre / Other
 
+
     Update SKILL.md sections:
+
     - Create command: show multiple phone/email syntax
+
     - Update command: show add/remove phone/email syntax
+
     - Show command: demonstrate multi-phone/email display
+
     - Validation prompt: show multiple phones/emails format
 
+
     Natural language examples:
+
     - "Crée un contact avec deux numéros: mobile et travail"
+
     - "Ajoute son email personnel john@gmail.com"
+
     - "Change son numéro de travail"
+
     - "Remove his home phone"
 
+
     Acceptance criteria:
+
     - SKILL.md documents phone types
+
     - SKILL.md documents email types
+
     - Create examples show multiple phones/emails
+
     - Update examples show add/remove
+
     - Validation prompt shows all phones/emails
+
+    '
   tests:
   - SKILL.md lists all phone types
   - SKILL.md lists all email types
@@ -983,58 +1191,88 @@
   - Update command examples with --add-email
   - Validation prompt format includes multiple entries
   passes: true
-
-# =============================================================================
-# PHASE 8: ADDRESSES AND BIRTHDAY SUPPORT
-# =============================================================================
-
 - id: US-00022
-  title: "google-contacts: Add birthday field support in create/update/show"
+  title: 'google-contacts: Add birthday field support in create/update/show'
   priority: 22
-  description: |
-    Add support for birthday field in contact management.
+  description: 'Add support for birthday field in contact management.
+
 
     Birthday format:
+
     - Full date: YYYY-MM-DD (e.g., "1985-03-15")
+
     - Month and day only: --MM-DD (e.g., "--03-15") for contacts where year is unknown
+
     - Display: "15 mars 1985" or "15 mars" (if no year)
+
 
     CLI changes:
 
+
     For create command:
+
     - --birthday, -b: Birthday (format: YYYY-MM-DD or --MM-DD)
+
     - Example: google-contacts create -f Jean -l Dupont -p +33612345678 -b 1985-03-15
 
+
     For update command:
+
     - --birthday, -b: Update birthday
+
     - --clear-birthday: Remove birthday from contact
+
     - Example: google-contacts update c123 -b 1990-06-20
+
     - Example: google-contacts update c123 --clear-birthday
 
+
     For show command:
+
     - Display birthday in contact details with formatted date
+
     - Show age if year is available
 
+
     Implementation:
+
     - Add Birthday field to ContactInput struct
+
     - Add Birthday and ClearBirthday to UpdateInput struct
+
     - Add Birthday to ContactDetails struct
+
     - Update CreateContact to set birthday
+
     - Update UpdateContact to handle birthday changes
+
     - Update GetContactDetails to return birthday
+
     - Add birthday to PersonFields in API calls
 
+
     People API mapping:
+
     - people.Birthday with date (year, month, day)
+
     - Year can be 0 for unknown year
+
     - Use "birthdays" in PersonFields
 
+
     Acceptance criteria:
+
     - Create command accepts --birthday flag
+
     - Update command can set/clear birthday
+
     - Show command displays birthday with formatting
+
     - Age calculated and displayed if year known
+
     - Birthday visible in Google Contacts web UI
+
+    '
   tests:
   - google-contacts create --help shows --birthday flag
   - google-contacts update --help shows --birthday and --clear-birthday flags
@@ -1046,63 +1284,108 @@
   - show displays age if year is known
   - birthday visible in Google Contacts web UI
   passes: true
-
 - id: US-00023
-  title: "google-contacts: Add address field support in create/update"
+  title: 'google-contacts: Add address field support in create/update'
   priority: 23
-  description: |
-    Add support for postal addresses in contact management.
+  description: 'Add support for postal addresses in contact management.
+
 
     Address types supported:
+
     - home: Home address (default if no type specified)
+
     - work: Work address
+
     - other: Other address
 
+
     Address format for CLI:
+
     - Simple: Full address as a single string
+
     - With type: "type:address"
+
     - Multiple: Repeat --address flag
+
 
     CLI changes:
 
+
     For create command:
+
     - --address, -a: Postal address (can be repeated for multiple)
-    - Format: "type:street, city, postal, country" or just "street, city, postal, country"
-    - Example: google-contacts create -f Jean -l Dupont -p +33612345678 -a "work:123 Rue Example, Paris, 75001, France"
-    - Example: google-contacts create -f Jean -l Dupont -p +33612345678 -a "10 Avenue Test, Lyon, 69001"
+
+    - Format: "type:street, city, postal, country" or just "street, city, postal,
+    country"
+
+    - Example: google-contacts create -f Jean -l Dupont -p +33612345678 -a "work:123
+    Rue Example, Paris, 75001, France"
+
+    - Example: google-contacts create -f Jean -l Dupont -p +33612345678 -a "10 Avenue
+    Test, Lyon, 69001"
+
 
     For update command:
+
     - --address: Replace all addresses
+
     - --add-address: Add address without removing existing
+
     - --remove-address: Remove address by matching street content
+
     - Example: google-contacts update c123 -a "home:456 New Street, Paris, 75002"
+
     - Example: google-contacts update c123 --add-address "work:789 Office Blvd, Paris"
+
     - Example: google-contacts update c123 --remove-address "123 Rue Example"
 
+
     For show command:
+
     - Display all addresses with types
+
     - Format: Type: Street, City, Postal, Country
 
+
     Implementation:
+
     - Add AddressEntry struct with Value and Type fields
+
     - Add Addresses []AddressEntry to ContactInput
+
     - Add Addresses, AddAddresses, RemoveAddresses to UpdateInput
+
     - Add Addresses to ContactDetails
+
     - Update CreateContact to set addresses
+
     - Update UpdateContact to handle address changes
+
     - Update GetContactDetails to return addresses
+
     - Add addresses to PersonFields in API calls
 
+
     People API mapping:
+
     - people.Address with formattedValue, type
+
     - Can also use structured fields: streetAddress, city, postalCode, country
+
     - Use "addresses" in PersonFields
 
+
     Acceptance criteria:
+
     - Create command accepts --address flag (repeatable)
+
     - Update command can set/add/remove addresses
+
     - Show command displays all addresses with types
+
     - Addresses visible in Google Contacts web UI
+
+    '
   tests:
   - google-contacts create --help shows --address flag
   - google-contacts update --help shows --address, --add-address, --remove-address
@@ -1115,49 +1398,82 @@
   - show displays all addresses with correct types
   - addresses visible in Google Contacts web UI
   passes: true
-
 - id: US-00024
-  title: "google-contacts: Structured address parsing"
+  title: 'google-contacts: Structured address parsing'
   priority: 24
-  description: |
-    Enhance address support with structured parsing for better Google Contacts integration.
+  description: 'Enhance address support with structured parsing for better Google
+    Contacts integration.
+
 
     Address structure (Google People API fields):
+
     - streetAddress: Street name and number
+
     - city: City name
+
     - postalCode: Postal/ZIP code
+
     - region: State/Province (optional)
+
     - country: Country name
+
     - countryCode: ISO 3166-1 alpha-2 country code (optional)
 
+
     Parsing strategy:
+
     - Accept either formatted string or structured input
+
     - Auto-detect French addresses (postal code format: 5 digits)
-    - For French: "123 Rue Example, 75001 Paris" -> street=123 Rue Example, postal=75001, city=Paris
+
+    - For French: "123 Rue Example, 75001 Paris" -> street=123 Rue Example, postal=75001,
+    city=Paris
+
 
     CLI enhanced syntax:
+
     - Simple: "123 Rue Example, Paris, 75001, France"
+
     - Structured: "street=123 Rue Example;city=Paris;postal=75001;country=France"
+
     - Auto-parse French: "123 Rue Example, 75001 Paris" -> detects and structures
 
+
     French address patterns to recognize:
+
     - "street, postal city" (e.g., "10 Rue Test, 75001 Paris")
+
     - "street, city postal" (e.g., "10 Rue Test, Paris 75001")
+
     - "street, postal city, country" (e.g., "10 Rue Test, 75001 Paris, France")
+
     - "street, city, postal, country" (e.g., "10 Rue Test, Paris, 75001, France")
 
+
     Implementation:
+
     - Add parseAddress() function to parse various formats
+
     - Detect French postal codes (5 digits)
+
     - Extract structured fields for API
+
     - Store both formatted and structured in API
 
+
     Acceptance criteria:
+
     - Formatted address string is parsed correctly
+
     - French addresses auto-detected and structured
+
     - Structured input syntax works
+
     - Google Contacts shows properly structured address
+
     - Address searchable by city in Google Contacts
+
+    '
   tests:
   - parseAddress recognizes "street, postal city" format
   - parseAddress recognizes "street, city, postal, country" format
@@ -1167,50 +1483,81 @@
   - Google Contacts web UI shows address with correct structure
   - Address is searchable by city in Google Contacts
   passes: true
-
 - id: US-00025
-  title: "google-contacts skill: Document birthday support"
+  title: 'google-contacts skill: Document birthday support'
   priority: 25
-  description: |
-    Update SKILL.md to document birthday field support.
+  description: 'Update SKILL.md to document birthday field support.
+
 
     SKILL.md sections to add/update:
 
+
     Birthday documentation:
+
     - Format: YYYY-MM-DD for full date, --MM-DD for month/day only
+
     - Display format: "15 mars 1985" or "15 mars" (no year)
+
     - Age calculation when year is known
 
+
     Create workflow update:
+
     - Add birthday to validation prompt
+
     - Natural language: "Crée un contact Jean Dupont né le 15 mars 1985"
+
     - Screenshot extraction: Look for "Date de naissance", "Né le", "DOB", "Birthday"
 
+
     Update workflow:
+
     - "Change la date de naissance de Jean à 1990-06-20"
+
     - "Supprime la date de naissance de Marie"
+
     - "Ajoute son anniversaire : 15 mars"
 
+
     Validation prompt update:
+
     ```
+
     📋 Contact à créer :
+
     ───────────────────
+
     Prénom    : Jean
+
     Nom       : Dupont
+
     Téléphone : +33 6 12 34 56 78 (mobile)
+
     Email     : jean@acme.com (work)
+
     Entreprise: Acme Corp
+
     Poste     : CTO
+
     Naissance : 15 mars 1985 (39 ans)
 
+
     Est-ce correct ? (oui/non/modifier)
+
     ```
 
+
     Acceptance criteria:
+
     - SKILL.md documents birthday format
+
     - SKILL.md shows birthday in validation prompt
+
     - Natural language examples for birthday
+
     - Screenshot extraction mentions birthday fields
+
+    '
   tests:
   - SKILL.md documents birthday format (YYYY-MM-DD, --MM-DD)
   - SKILL.md shows birthday in validation prompt example
@@ -1219,57 +1566,95 @@
   - Create workflow includes birthday in confirmation
   - Update workflow shows birthday modification examples
   passes: true
-
 - id: US-00026
-  title: "google-contacts skill: Document address support"
+  title: 'google-contacts skill: Document address support'
   priority: 26
-  description: |
-    Update SKILL.md to document address field support.
+  description: 'Update SKILL.md to document address field support.
+
 
     SKILL.md sections to add/update:
 
+
     Address types documentation:
+
     - home: Adresse personnelle / Home address
+
     - work: Adresse professionnelle / Work address
+
     - other: Autre / Other
 
+
     Address format documentation:
+
     - Simple: "123 Rue Example, Paris, 75001, France"
+
     - With type: "work:123 Rue Example, Paris, 75001"
+
     - French auto-detection: "10 Avenue Test, 75001 Paris"
 
+
     Create workflow update:
+
     - Add address to validation prompt
-    - Natural language: "Crée un contact pour Jean Dupont qui habite 10 Rue Test, 75001 Paris"
+
+    - Natural language: "Crée un contact pour Jean Dupont qui habite 10 Rue Test,
+    75001 Paris"
+
     - Screenshot extraction: Look for "Adresse", "Address", street patterns
 
+
     Update workflow:
-    - "Ajoute l'adresse professionnelle de Jean: 50 Avenue Business, Paris"
-    - "Change l'adresse de Marie"
-    - "Supprime l'adresse personnelle de Pierre"
+
+    - "Ajoute l''adresse professionnelle de Jean: 50 Avenue Business, Paris"
+
+    - "Change l''adresse de Marie"
+
+    - "Supprime l''adresse personnelle de Pierre"
+
 
     Validation prompt update:
+
     ```
+
     📋 Contact à créer :
+
     ───────────────────
+
     Prénom    : Jean
+
     Nom       : Dupont
+
     Téléphone : +33 6 12 34 56 78 (mobile)
+
     Email     : jean@acme.com (work)
+
     Entreprise: Acme Corp
+
     Poste     : CTO
+
     Naissance : 15 mars 1985 (39 ans)
+
     Adresse   : 10 Rue Example, 75001 Paris (home)
 
+
     Est-ce correct ? (oui/non/modifier)
+
     ```
 
+
     Acceptance criteria:
+
     - SKILL.md documents address types
+
     - SKILL.md documents address formats
+
     - SKILL.md shows address in validation prompt
+
     - Natural language examples for addresses
+
     - Screenshot extraction mentions address patterns
+
+    '
   tests:
   - SKILL.md documents address types (home, work, other)
   - SKILL.md documents address format syntax
@@ -1279,15 +1664,509 @@
   - Screenshot extraction mentions address fields
   - Update workflow shows address modification examples
   passes: true
+- id: US-00027
+  title: 'google-contacts: Phone number internationalization with France default'
+  priority: 27
+  description: "Ensure phone numbers are always stored in international format with\
+    \ country code prefix.\nDefault to France (+33) when no country code is provided.\n\
+    \n**Current behavior:**\n- Phone numbers are stored as provided by user\n- \"\
+    0612345678\" is stored as \"0612345678\" (no country code)\n\n**Target behavior:**\n\
+    - All phone numbers MUST have country code prefix\n- If phone starts with \"0\"\
+    \ and no \"+\" prefix, assume France and convert:\n  - \"0612345678\" → \"+33612345678\"\
+    \n  - \"06 12 34 56 78\" → \"+33612345678\"\n- If phone already has \"+\", keep\
+    \ as-is:\n  - \"+33612345678\" → \"+33612345678\"\n  - \"+1-555-123-4567\" → \"\
+    +1-555-123-4567\"\n- If phone starts with \"00\" (international prefix), convert:\n\
+    \  - \"0033612345678\" → \"+33612345678\"\n\n**Implementation:**\n1. Add `normalizePhoneNumber(phone\
+    \ string) string` function in service.go\n2. Call it in CreateContact and UpdateContact\
+    \ before storing\n3. Update parsePhones in cli.go to normalize during parsing\n\
+    4. Add unit tests for normalization logic\n\n**Edge cases:**\n- Remove spaces,\
+    \ dashes, dots from phone numbers\n- Handle various French formats: \"06.12.34.56.78\"\
+    , \"06-12-34-56-78\"\n- Preserve non-French numbers that already have country\
+    \ codes\n\nAcceptance criteria:\n- All phone numbers stored with \"+\" country\
+    \ code prefix\n- French numbers (starting with 0) get +33 prefix\n- International\
+    \ numbers (starting with +) are preserved\n- Spaces/dashes/dots are removed for\
+    \ consistency\n"
+  tests:
+  - normalizePhoneNumber("0612345678") returns "+33612345678"
+  - normalizePhoneNumber("06 12 34 56 78") returns "+33612345678"
+  - normalizePhoneNumber("06.12.34.56.78") returns "+33612345678"
+  - normalizePhoneNumber("+33612345678") returns "+33612345678"
+  - normalizePhoneNumber("+1-555-123-4567") returns "+15551234567"
+  - normalizePhoneNumber("0033612345678") returns "+33612345678"
+  - create command normalizes phone before API call
+  - update command normalizes phone before API call
+  - show command displays normalized phone numbers
+  passes: true
+- id: US-00028
+  title: 'google-contacts: Create MCP server command structure'
+  priority: 28
+  description: "Create the `mcp` subcommand that starts an HTTP server implementing\n\
+    the Model Context Protocol (MCP) streamable transport.\n\n**Command:** `google-contacts\
+    \ mcp [flags]`\n\n**Flags:**\n- `--port, -p`: Port to listen on (default: 8080)\n\
+    - `--host`: Host to bind to (default: \"0.0.0.0\")\n- `--api-key`: API Key for\
+    \ authentication (optional, for local dev)\n- `--firestore-project`: GCP project\
+    \ ID for Firestore API key validation\n\n**Implementation:**\n1. Add mcp-go SDK\
+    \ dependency: `github.com/modelcontextprotocol/go-sdk`\n2. Create `internal/mcp/server.go`\
+    \ with MCP server setup\n3. Create `internal/mcp/handlers.go` with HTTP handlers\n\
+    4. Add mcpCmd to cli.go with flags\n\n**Server structure:**\n```\ninternal/\n\
+    └── mcp/\n    ├── server.go     # MCP server initialization, streamable transport\n\
+    \    ├── handlers.go   # HTTP handlers, API key middleware\n    └── tools.go \
+    \     # MCP tool definitions (US-00029)\n```\n\n**Basic server startup:**\n```go\n\
+    // Start MCP server\nsrv := mcp.NewServer(\n    mcp.WithName(\"google-contacts\"\
+    ),\n    mcp.WithVersion(\"1.0.0\"),\n)\n// Add tools (implemented in US-00029)\n\
+    // Start HTTP server with streamable transport\n```\n\nAcceptance criteria:\n\
+    - mcp command starts HTTP server\n- Server responds to MCP protocol handshake\n\
+    - --port flag configures listening port\n- Server logs startup information\n-\
+    \ Graceful shutdown on SIGINT/SIGTERM\n"
+  tests:
+  - google-contacts mcp --help shows all flags
+  - google-contacts mcp starts server on default port 8080
+  - google-contacts mcp -p 9090 starts on port 9090
+  - Server responds to MCP initialize request
+  - CTRL+C gracefully shuts down server
+  - Server logs show startup and shutdown messages
+  passes: true
+- id: US-00029
+  title: 'google-contacts: Implement MCP tools for contacts operations'
+  priority: 29
+  description: "Implement MCP tool definitions for all contacts operations.\nEach\
+    \ tool wraps the existing service layer methods.\n\n**MCP Tools:**\n\n1. **contacts_create**\
+    \ - Create a new contact\n   Input schema:\n   ```json\n   {\n     \"firstName\"\
+    : \"string (required)\",\n     \"lastName\": \"string (required)\",\n     \"phones\"\
+    : [{\"value\": \"string\", \"type\": \"string\"}],\n     \"emails\": [{\"value\"\
+    : \"string\", \"type\": \"string\"}],\n     \"addresses\": [{\"value\": \"string\"\
+    , \"type\": \"string\"}],\n     \"company\": \"string\",\n     \"position\": \"\
+    string\",\n     \"notes\": \"string\",\n     \"birthday\": \"string (YYYY-MM-DD\
+    \ or --MM-DD)\"\n   }\n   ```\n   Output: Created contact details with ID\n\n\
+    2. **contacts_search** - Search contacts\n   Input schema:\n   ```json\n   {\n\
+    \     \"query\": \"string (required)\"\n   }\n   ```\n   Output: Array of matching\
+    \ contacts\n\n3. **contacts_show** - Get contact details\n   Input schema:\n \
+    \  ```json\n   {\n     \"contactId\": \"string (required)\"\n   }\n   ```\n  \
+    \ Output: Full contact details\n\n4. **contacts_update** - Update existing contact\n\
+    \   Input schema:\n   ```json\n   {\n     \"contactId\": \"string (required)\"\
+    ,\n     \"firstName\": \"string\",\n     \"lastName\": \"string\",\n     \"phones\"\
+    : [{\"value\": \"string\", \"type\": \"string\"}],\n     \"addPhones\": [{\"value\"\
+    : \"string\", \"type\": \"string\"}],\n     \"removePhones\": [\"string\"],\n\
+    \     \"emails\": [{\"value\": \"string\", \"type\": \"string\"}],\n     \"addEmails\"\
+    : [{\"value\": \"string\", \"type\": \"string\"}],\n     \"removeEmails\": [\"\
+    string\"],\n     \"addresses\": [{\"value\": \"string\", \"type\": \"string\"\
+    }],\n     \"addAddresses\": [{\"value\": \"string\", \"type\": \"string\"}],\n\
+    \     \"removeAddresses\": [\"string\"],\n     \"company\": \"string\",\n    \
+    \ \"position\": \"string\",\n     \"notes\": \"string\",\n     \"birthday\": \"\
+    string\",\n     \"clearBirthday\": \"boolean\"\n   }\n   ```\n   Output: Updated\
+    \ contact details\n\n5. **contacts_delete** - Delete a contact\n   Input schema:\n\
+    \   ```json\n   {\n     \"contactId\": \"string (required)\"\n   }\n   ```\n \
+    \  Output: Confirmation message\n\n**Implementation in internal/mcp/tools.go:**\n\
+    - Define tool schemas using mcp-go SDK\n- Implement handlers that call contacts.Service\
+    \ methods\n- Handle errors and return appropriate MCP error responses\n\nAcceptance\
+    \ criteria:\n- All 5 tools registered with MCP server\n- Tool schemas match input/output\
+    \ specifications\n- Tools call existing service layer (no code duplication)\n\
+    - Error handling returns MCP-compliant errors\n- Tools are discoverable via MCP\
+    \ tools/list\n"
+  tests:
+  - MCP tools/list returns all 5 tools
+  - contacts_create tool creates contact via API
+  - contacts_search tool returns matching contacts
+  - contacts_show tool returns contact details
+  - contacts_update tool modifies contact
+  - contacts_delete tool removes contact
+  - Invalid input returns MCP error response
+  - Missing required fields return validation error
+  passes: false
+- id: US-00030
+  title: 'google-contacts: MCP API Key middleware'
+  priority: 30
+  description: "Implement API Key authentication middleware for the MCP server.\n\
+    API Keys are validated against Firestore when --firestore-project is set.\n\n\
+    **Authentication flow:**\n1. Extract API Key from `Authorization: Bearer <key>`\
+    \ header\n2. If --api-key flag set: validate against that value (local dev)\n\
+    3. If --firestore-project set: validate against Firestore\n4. If neither set:\
+    \ allow unauthenticated access (local dev default)\n\n**Firestore validation:**\n\
+    - Collection: `api_keys`\n- Document ID: API Key (UUID)\n- Document fields:\n\
+    \  - `refresh_token`: OAuth refresh token (encrypted or plain)\n  - `created_at`:\
+    \ Timestamp\n  - `last_used`: Timestamp (updated on each use)\n  - `user_email`:\
+    \ Email from OAuth flow\n\n**Middleware implementation in internal/mcp/handlers.go:**\n\
+    ```go\nfunc APIKeyMiddleware(firestoreProject string, staticKey string) func(http.Handler)\
+    \ http.Handler {\n    return func(next http.Handler) http.Handler {\n        return\
+    \ http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {\n          \
+    \  // Extract and validate API key\n            // Set refresh token in context\
+    \ if valid\n            // Return 401 if invalid\n        })\n    }\n}\n```\n\n\
+    **Context injection:**\n- If API key valid, inject refresh token into request\
+    \ context\n- Service layer uses refresh token to authenticate with Google API\n\
+    - This allows multi-tenant operation (each API key = different Google account)\n\
+    \nAcceptance criteria:\n- Requests without API key rejected (401) when auth enabled\n\
+    - Valid static API key (--api-key flag) passes authentication\n- Valid Firestore\
+    \ API key passes authentication\n- Invalid API key returns 401 Unauthorized\n\
+    - Valid requests continue to MCP handler\n- Refresh token available in context\
+    \ for service layer\n"
+  tests:
+  - Request without Authorization header returns 401 (when auth enabled)
+  - Request with invalid Bearer token returns 401
+  - Request with valid --api-key value passes
+  - Request with valid Firestore key passes
+  - Firestore last_used timestamp updated on valid request
+  - Refresh token injected into context
+  - Service layer can retrieve refresh token from context
+  passes: false
+- id: US-00031
+  title: 'terraform: Initialize infrastructure project structure'
+  priority: 31
+  description: "Initialize Terraform project structure following terraform skill conventions.\n\
+    \n**Config file: config.yaml**\n```yaml\nprefix: scmgcontacts\nproject_name: google-contacts-mcp\n\
+    project_id: <configured-gcp-project>\nlocation: europe-west1\nenv: prod\n\nservices:\n\
+    \  - run.googleapis.com\n  - firestore.googleapis.com\n  - secretmanager.googleapis.com\n\
+    \  - cloudbuild.googleapis.com\n  - artifactregistry.googleapis.com\n\nresources:\n\
+    \  cloud_run:\n    name: google-contacts-mcp\n    memory: 256Mi\n    cpu: 1\n\
+    \    min_instances: 0\n    max_instances: 3\n    allow_unauthenticated: true\n\
+    \n  firestore:\n    database_id: \"(default)\"\n    location_id: eur3\n\n  secrets:\n\
+    \    oauth_credentials: scm-pwd-oauth-creds\n```\n\n**Steps:**\n1. Create config.yaml\
+    \ at project root\n2. Run `~/.claude/skills/terraform/scripts/run.sh check_version\
+    \ --install`\n3. Run `~/.claude/skills/terraform/scripts/run.sh init_project --config\
+    \ config.yaml`\n4. This creates init/ and iac/ directories with templates\n\n\
+    **Generated structure:**\n```\ngoogle-contacts/\n├── config.yaml\n├── init/\n\
+    │   ├── provider.tf\n│   ├── local.tf\n│   ├── state.tf          # State bucket\n\
+    │   └── service-account.tf\n└── iac/\n    ├── provider.tf.template\n    ├── local.tf\n\
+    \    └── (resource files added in later stories)\n```\n\nAcceptance criteria:\n\
+    - config.yaml created with all required fields\n- init/ directory created with\
+    \ state management\n- iac/ directory created with provider template\n- Makefile\
+    \ updated with terraform targets\n- .gitignore updated for terraform files\n-\
+    \ Initial commit for infrastructure setup\n"
+  tests:
+  - config.yaml exists with correct structure
+  - init/provider.tf exists
+  - init/local.tf exists
+  - iac/provider.tf.template exists
+  - iac/local.tf exists
+  - Makefile contains init-plan, init-deploy, plan, deploy targets
+  - .gitignore includes .terraform, *.tfstate
+  - scripts/run.sh parse_config validates config.yaml
+  passes: false
+- id: US-00032
+  title: 'terraform: Cloud Run service configuration'
+  priority: 32
+  description: "Create Terraform configuration for Cloud Run service deployment.\n\
+    \n**File: iac/workload-mcp.tf**\n\n**Resources:**\n1. **Artifact Registry repository**\
+    \ - For container images\n   - Format: Docker\n   - Location: from config.yaml\n\
+    \n2. **Cloud Build trigger** - Build and push container\n   - Triggered by source\
+    \ changes (or manual)\n   - Builds from Dockerfile at project root\n   - Pushes\
+    \ to Artifact Registry\n\n3. **Cloud Run service** - MCP server\n   - Image from\
+    \ Artifact Registry\n   - Memory: 256Mi (configurable)\n   - CPU: 1 (configurable)\n\
+    \   - Min instances: 0 (scale to zero)\n   - Max instances: 3\n   - Allow unauthenticated:\
+    \ true (API key protection at app level)\n   - Environment variables:\n     -\
+    \ FIRESTORE_PROJECT: GCP project ID\n     - PORT: 8080\n\n4. **IAM binding** -\
+    \ Allow unauthenticated access\n   - roles/run.invoker to allUsers\n\n**Service\
+    \ account:**\n- Custom service account (not default)\n- Roles:\n  - roles/datastore.user\
+    \ (Firestore access)\n  - roles/secretmanager.secretAccessor (read OAuth creds)\n\
+    \n**Outputs:**\n- Cloud Run service URL\n- Artifact Registry repository URL\n\n\
+    Acceptance criteria:\n- Artifact Registry repository created\n- Cloud Run service\
+    \ deployed\n- Service allows unauthenticated HTTP access\n- Service account has\
+    \ Firestore and Secret Manager access\n- Outputs show service URL\n"
+  tests:
+  - iac/workload-mcp.tf exists with all resources
+  - make plan shows Cloud Run service creation
+  - Cloud Run service is publicly accessible
+  - Service account has correct IAM roles
+  - Environment variables configured correctly
+  - Artifact Registry repository created
+  passes: false
+- id: US-00033
+  title: 'terraform: Firestore database and indexes'
+  priority: 33
+  description: "Create Terraform configuration for Firestore database setup.\n\n**File:\
+    \ iac/database-firestore.tf**\n\n**Resources:**\n1. **Firestore database** - Native\
+    \ mode\n   - Location: eur3 (Europe multi-region)\n   - Type: FIRESTORE_NATIVE\n\
+    \n2. **Firestore indexes** (if needed)\n   - Collection: api_keys\n   - Fields:\
+    \ created_at (for listing), last_used (for cleanup)\n\n**Collection structure\
+    \ (documented, not created by Terraform):**\n```\napi_keys/\n└── {api_key_uuid}/\n\
+    \    ├── refresh_token: string\n    ├── user_email: string\n    ├── created_at:\
+    \ timestamp\n    └── last_used: timestamp\n```\n\n**Notes:**\n- Firestore collections\
+    \ are created automatically on first write\n- Terraform only manages the database\
+    \ and indexes\n- API key documents created by application during OAuth flow\n\n\
+    Acceptance criteria:\n- Firestore database created in native mode\n- Database\
+    \ location matches config.yaml\n- Indexes created for efficient queries\n- Documentation\
+    \ of collection structure in CLAUDE.md\n"
+  tests:
+  - iac/database-firestore.tf exists
+  - make plan shows Firestore database creation
+  - Database created in correct location
+  - CLAUDE.md documents Firestore structure
+  passes: false
+- id: US-00034
+  title: 'terraform: Secret Manager for OAuth credentials'
+  priority: 34
+  description: "Create Terraform configuration for storing OAuth credentials in Secret\
+    \ Manager.\n\n**File: iac/secrets.tf**\n\n**Resources:**\n1. **Secret Manager\
+    \ secret** - OAuth credentials\n   - Name: from config.yaml (scm-pwd-oauth-creds)\n\
+    \   - Replication: automatic\n\n2. **Secret version** - Initial version with credentials\n\
+    \   - Data: Contents of ~/.credentials/scm-pwd.json\n   - NOTE: Sensitive data,\
+    \ use local-exec or manual upload\n\n**Approach for credential upload:**\nOption\
+    \ A (Terraform with local file):\n```hcl\nresource \"google_secret_manager_secret_version\"\
+    \ \"oauth_creds\" {\n  secret      = google_secret_manager_secret.oauth_creds.id\n\
+    \  secret_data = file(\"~/.credentials/scm-pwd.json\")\n}\n```\n\nOption B (Manual\
+    \ upload after Terraform):\n```bash\ngcloud secrets versions add scm-pwd-oauth-creds\
+    \ \\\n  --data-file=$HOME/.credentials/scm-pwd.json\n```\n\n**Cloud Run integration:**\n\
+    - Service reads secret at startup or on-demand\n- Use Secret Manager API or volume\
+    \ mount\n\n**Security considerations:**\n- Secret not stored in Terraform state\
+    \ if using local-exec\n- Service account has secretAccessor role only\n- Secret\
+    \ rotation possible via new versions\n\nAcceptance criteria:\n- Secret Manager\
+    \ secret created\n- OAuth credentials stored as secret version\n- Cloud Run service\
+    \ can access secret\n- Sensitive data not exposed in Terraform state\n"
+  tests:
+  - iac/secrets.tf exists
+  - make plan shows Secret Manager resources
+  - Secret created with correct name
+  - gcloud secrets describe shows secret exists
+  - Cloud Run service account can access secret
+  passes: false
+- id: US-00035
+  title: 'google-contacts: Makefile deployment targets'
+  priority: 35
+  description: "Add deployment targets to Makefile for building and deploying to Cloud\
+    \ Run.\n\n**New Makefile targets:**\n\n1. **docker-build** - Build container image\
+    \ locally\n   ```makefile\n   docker-build:\n       docker build -t google-contacts-mcp:latest\
+    \ .\n   ```\n\n2. **docker-push** - Push to Artifact Registry\n   ```makefile\n\
+    \   docker-push:\n       docker tag google-contacts-mcp:latest $(REGISTRY)/google-contacts-mcp:latest\n\
+    \       docker push $(REGISTRY)/google-contacts-mcp:latest\n   ```\n\n3. **deploy**\
+    \ - Full deployment (build + push + update Cloud Run)\n   ```makefile\n   deploy:\
+    \ docker-build docker-push\n       gcloud run deploy google-contacts-mcp \\\n\
+    \         --image $(REGISTRY)/google-contacts-mcp:latest \\\n         --region\
+    \ $(REGION)\n   ```\n\n**Dockerfile:**\nCreate Dockerfile for MCP server:\n```dockerfile\n\
+    FROM golang:1.25-alpine AS builder\nWORKDIR /app\nCOPY go.mod go.sum ./\nRUN go\
+    \ mod download\nCOPY . .\nRUN CGO_ENABLED=0 go build -o /google-contacts ./cmd/google-contacts\n\
+    \nFROM alpine:latest\nRUN apk --no-cache add ca-certificates\nCOPY --from=builder\
+    \ /google-contacts /google-contacts\nEXPOSE 8080\nENTRYPOINT [\"/google-contacts\"\
+    , \"mcp\"]\n```\n\n**Variables in Makefile:**\n- REGISTRY: Artifact Registry URL\n\
+    - REGION: Cloud Run region\n- PROJECT: GCP project ID\n\n**Backward compatibility:**\n\
+    - Existing targets (build, test, install) unchanged\n- New targets are additive,\
+    \ CLI functionality preserved\n- Same binary works as CLI or MCP server\n\nAcceptance\
+    \ criteria:\n- Dockerfile builds MCP server correctly\n- docker-build target works\
+    \ locally\n- docker-push target pushes to Artifact Registry\n- deploy target updates\
+    \ Cloud Run service\n- Existing CLI targets still work\n"
+  tests:
+  - Dockerfile exists at project root
+  - make docker-build creates container image
+  - Container runs and responds to MCP requests
+  - make build still produces CLI binary
+  - make test still runs unit tests
+  - make install still works for local CLI
+  passes: false
+- id: US-00036
+  title: 'google-contacts: OAuth authentication endpoint (/auth)'
+  priority: 36
+  description: "Implement OAuth2 authentication flow for generating API keys.\n\n\
+    **Endpoints:**\n1. `GET /auth` - Start OAuth flow\n   - Generates state token\
+    \ for CSRF protection\n   - Stores state in memory or Firestore (short TTL)\n\
+    \   - Redirects to Google OAuth consent URL\n\n2. `GET /auth/callback` - OAuth\
+    \ callback\n   - Validates state parameter\n   - Exchanges authorization code\
+    \ for tokens\n   - Calls US-00037 to generate and store API key\n   - Redirects\
+    \ to success page\n\n**OAuth configuration:**\n- Client ID/Secret from Secret\
+    \ Manager\n- Scopes: Gmail + People API (same as CLI)\n- Redirect URI: https://<cloud-run-url>/auth/callback\n\
+    \n**Implementation in internal/mcp/auth.go:**\n```go\ntype AuthHandler struct\
+    \ {\n    clientID     string\n    clientSecret string\n    redirectURI  string\n\
+    \    firestoreClient *firestore.Client\n}\n\nfunc (h *AuthHandler) HandleAuth(w\
+    \ http.ResponseWriter, r *http.Request)\nfunc (h *AuthHandler) HandleCallback(w\
+    \ http.ResponseWriter, r *http.Request)\n```\n\n**Security considerations:**\n\
+    - State parameter prevents CSRF attacks\n- HTTPS enforced (Cloud Run provides\
+    \ TLS)\n- Short-lived authorization codes\n- Refresh tokens stored securely\n\n\
+    Acceptance criteria:\n- /auth redirects to Google OAuth consent\n- /auth/callback\
+    \ exchanges code for tokens\n- State parameter validated correctly\n- OAuth errors\
+    \ handled gracefully\n- Credentials loaded from Secret Manager\n"
+  tests:
+  - GET /auth returns 302 redirect to Google
+  - Redirect URL includes correct client_id and scopes
+  - State parameter included in redirect
+  - GET /auth/callback with valid code exchanges tokens
+  - GET /auth/callback with invalid state returns error
+  - GET /auth/callback with invalid code returns error
+  - OAuth credentials read from Secret Manager
+  passes: false
+- id: US-00037
+  title: 'google-contacts: API Key generation and Firestore storage'
+  priority: 37
+  description: "Implement API Key generation and storage in Firestore.\n\n**API Key\
+    \ format:** UUID v4 (e.g., \"550e8400-e29b-41d4-a716-446655440000\")\n\n**Firestore\
+    \ document structure:**\nCollection: `api_keys`\nDocument ID: API Key (UUID)\n\
+    ```json\n{\n  \"refresh_token\": \"1//0abc...\",\n  \"access_token\": \"ya29...\"\
+    ,\n  \"token_expiry\": \"2025-01-15T12:00:00Z\",\n  \"user_email\": \"user@example.com\"\
+    ,\n  \"created_at\": \"2025-01-14T10:00:00Z\",\n  \"last_used\": \"2025-01-14T10:00:00Z\"\
+    \n}\n```\n\n**Implementation in internal/mcp/apikey.go:**\n```go\ntype APIKeyService\
+    \ struct {\n    firestoreClient *firestore.Client\n}\n\n// GenerateAPIKey creates\
+    \ new API key, stores tokens in Firestore\nfunc (s *APIKeyService) GenerateAPIKey(ctx\
+    \ context.Context, token *oauth2.Token, email string) (string, error)\n\n// ValidateAPIKey\
+    \ checks if API key exists and returns associated token\nfunc (s *APIKeyService)\
+    \ ValidateAPIKey(ctx context.Context, apiKey string) (*oauth2.Token, error)\n\n\
+    // UpdateLastUsed updates the last_used timestamp\nfunc (s *APIKeyService) UpdateLastUsed(ctx\
+    \ context.Context, apiKey string) error\n```\n\n**Token refresh handling:**\n\
+    - Store both access_token and refresh_token\n- Access token has short expiry (~1\
+    \ hour)\n- On validation, check expiry and refresh if needed\n- Update stored\
+    \ tokens after refresh\n\nAcceptance criteria:\n- API Key generated as valid UUID\
+    \ v4\n- Tokens stored in Firestore document\n- ValidateAPIKey retrieves tokens\
+    \ correctly\n- Token refresh works when access_token expired\n- last_used timestamp\
+    \ updated on each validation\n"
+  tests:
+  - GenerateAPIKey returns valid UUID v4
+  - Firestore document created with all fields
+  - ValidateAPIKey returns token for valid key
+  - ValidateAPIKey returns error for invalid key
+  - Token refresh triggered when access_token expired
+  - last_used timestamp updated after validation
+  - user_email stored correctly from OAuth response
+  passes: false
+- id: US-00038
+  title: 'google-contacts: OAuth success page with API Key display'
+  priority: 38
+  description: "Create success page that displays the generated API Key to the user.\n\
+    \n**Endpoint:** `GET /auth/success?key=<api_key>`\n\n**Page content:**\n- Clean,\
+    \ simple HTML page\n- Displays API Key prominently\n- Copy-to-clipboard button\
+    \ (JavaScript)\n- Instructions for using the API Key\n- Security notice (store\
+    \ securely, don't share)\n\n**HTML template in internal/mcp/templates/success.html:**\n\
+    ```html\n<!DOCTYPE html>\n<html>\n<head>\n  <title>Google Contacts MCP - Authentication\
+    \ Successful</title>\n  <style>\n    /* Simple, clean styling */\n  </style>\n\
+    </head>\n<body>\n  <h1>✅ Authentication Successful!</h1>\n  <p>Your API Key has\
+    \ been generated. Use it to authenticate with the MCP server.</p>\n\n  <div class=\"\
+    api-key-box\">\n    <code id=\"api-key\">{{.APIKey}}</code>\n    <button onclick=\"\
+    copyToClipboard()\">\U0001F4CB Copy</button>\n  </div>\n\n  <h2>How to use this\
+    \ API Key</h2>\n  <p>Add this API Key to your MCP client configuration:</p>\n\
+    \  <pre>\n  {\n    \"mcpServers\": {\n      \"google-contacts\": {\n        \"\
+    url\": \"{{.ServerURL}}\",\n        \"headers\": {\n          \"Authorization\"\
+    : \"Bearer {{.APIKey}}\"\n        }\n      }\n    }\n  }\n  </pre>\n\n  <div class=\"\
+    warning\">\n    ⚠️ Store this API Key securely. It provides access to your Google\
+    \ Contacts.\n    Do not share it publicly.\n  </div>\n\n  <script>\n    function\
+    \ copyToClipboard() {\n      navigator.clipboard.writeText(document.getElementById('api-key').innerText);\n\
+    \      alert('API Key copied to clipboard!');\n    }\n  </script>\n</body>\n</html>\n\
+    ```\n\n**Implementation:**\n- Embed HTML template using Go embed\n- Pass API Key\
+    \ and server URL to template\n- Serve at /auth/success endpoint\n\nAcceptance\
+    \ criteria:\n- Success page displays API Key\n- Copy button works (JavaScript)\n\
+    - Instructions are clear and accurate\n- Page is accessible and well-formatted\n\
+    - Security warning displayed\n"
+  tests:
+  - GET /auth/success?key=xxx returns HTML page
+  - API Key displayed on page
+  - Copy button present and functional
+  - Server URL shown in configuration example
+  - Security warning visible
+  - Page renders correctly in browser
+  passes: false
+- id: US-00039
+  title: 'google-contacts: MCP server integration with per-user tokens'
+  priority: 39
+  description: 'Integrate API Key middleware with MCP tools for per-user authentication.
 
-# =============================================================================
-# DEPLOYMENT NOTE
-# =============================================================================
-# After implementing CLI changes, deploy the binary to the skill directory:
-#   make install INSTALL_DIR=~/.claude/skills/google-contacts/scripts/
-#
-# The skill references the binary at:
-#   ~/.claude/skills/google-contacts/scripts/google-contacts
-#
-# This is NOT a user story but a deployment task to be done after each
-# CLI modification (US-00014 through US-00017, US-00022 through US-00024).
+
+    **Flow:**
+
+    1. API Key middleware validates request
+
+    2. Middleware retrieves refresh_token from Firestore
+
+    3. Token passed in request context
+
+    4. MCP tools use token to authenticate with Google API
+
+    5. Each API Key = different Google account
+
+
+    **Context key for token:**
+
+    ```go
+
+    type contextKey string
+
+    const TokenContextKey contextKey = "oauth_token"
+
+
+    // In middleware
+
+    ctx := context.WithValue(r.Context(), TokenContextKey, token)
+
+
+    // In tool handler
+
+    token := r.Context().Value(TokenContextKey).(*oauth2.Token)
+
+    ```
+
+
+    **Service layer modification:**
+
+    - GetPeopleService now accepts optional token parameter
+
+    - If token provided, use it instead of loading from file
+
+    - Falls back to file-based auth for CLI usage
+
+
+    ```go
+
+    // Modified signature
+
+    func GetPeopleService(ctx context.Context, token *oauth2.Token) (*Service, error)
+
+
+    // CLI usage (token = nil, uses file)
+
+    srv, err := contacts.GetPeopleService(ctx, nil)
+
+
+    // MCP usage (token from context)
+
+    srv, err := contacts.GetPeopleService(ctx, tokenFromContext)
+
+    ```
+
+
+    **Backward compatibility:**
+
+    - CLI continues to use file-based token
+
+    - MCP server uses per-request tokens
+
+    - Same service layer code for both
+
+
+    Acceptance criteria:
+
+    - API Key validated before tool execution
+
+    - Token from Firestore used for Google API calls
+
+    - Different API Keys use different Google accounts
+
+    - CLI continues to work with file-based auth
+
+    - Invalid API Key returns 401 before tool execution
+
+    '
+  tests:
+  - MCP request with valid API Key succeeds
+  - MCP request uses correct Google account for API calls
+  - Different API Keys access different Google accounts
+  - CLI with --api-key flag uses static key validation
+  - CLI without MCP flags uses file-based auth
+  - Invalid API Key returns 401 immediately
+  passes: false
+- id: US-00040
+  title: 'google-contacts skill: Document MCP server deployment and usage'
+  priority: 40
+  description: "Update SKILL.md and README.md with MCP server documentation.\n\n**README.md\
+    \ additions:**\n- MCP Server section\n- Deployment instructions (Cloud Run)\n\
+    - Authentication flow explanation\n- API Key usage in MCP clients\n- Self-hosting\
+    \ guide\n\n**SKILL.md additions:**\n- MCP server availability note\n- Remote deployment\
+    \ option\n- API Key authentication workflow\n\n**CLAUDE.md additions:**\n- MCP\
+    \ server architecture\n- Terraform infrastructure documentation\n- Firestore schema\n\
+    - OAuth flow diagram\n\n**MCP client configuration example:**\n```json\n{\n  \"\
+    mcpServers\": {\n    \"google-contacts\": {\n      \"url\": \"https://google-contacts-mcp-xxx.run.app\"\
+    ,\n      \"transport\": \"streamable-http\",\n      \"headers\": {\n        \"\
+    Authorization\": \"Bearer <your-api-key>\"\n      }\n    }\n  }\n}\n```\n\nAcceptance\
+    \ criteria:\n- README.md documents MCP server usage\n- SKILL.md mentions MCP availability\n\
+    - CLAUDE.md documents architecture\n- Configuration examples are accurate\n- Deployment\
+    \ steps are clear\n"
+  tests:
+  - README.md has MCP Server section
+  - README.md has deployment instructions
+  - SKILL.md mentions MCP option
+  - CLAUDE.md documents Terraform infrastructure
+  - CLAUDE.md documents Firestore schema
+  - Configuration examples are valid JSON
+  passes: false
+

@@ -1401,3 +1401,253 @@ Updated SKILL.md to comprehensively document birthday field support across all w
 - No code tests needed since no Go code was changed
 
 ---
+
+## 2026-01-14 - US-00026 - google-contacts skill: Document address support
+
+**Status:** Completed successfully
+
+### What was implemented
+
+Updated SKILL.md to comprehensively document address field support across all workflows and examples.
+
+### Files changed
+
+- **Modified:**
+  - `~/.claude/skills/google-contacts/SKILL.md` - Added address documentation throughout the skill
+  - `CLAUDE.md` - Added address support to skill features list
+  - `stories.yaml` - Updated US-00026 `passes: false` to `passes: true`
+  - `progress.md` - Added this entry
+
+### SKILL.md sections added/updated
+
+**Address types documentation:**
+- Added "Types d'adresses supportés" table with home (default), work, other types
+- Added "Formats d'adresses supportés" section with French auto-detection examples
+- Added structured syntax documentation (key=value format)
+
+**Natural language parsing:**
+- Added address examples to parsing table:
+  - "Jean Dupont, 0612345678, habite 10 Rue Test, 75001 Paris"
+  - "Pierre Bernard chez Acme, bureau au 50 Avenue Business, Lyon"
+- Added "Mots-clés pour l'adresse" section (habite, bureau, réside, address, etc.)
+
+**Screenshot extraction:**
+- Added "Champs d'adresse à rechercher dans les images" section
+- Updated sources table with "Adresse probable" column showing likelihood per source type
+- Added "Courrier/Facture" as a new source with high address probability
+
+**Validation prompts:**
+- Updated main validation prompt format to include Adresse field
+- Updated multiple phones/emails format to show Adresses list
+- Updated screenshot validation prompt with address example
+
+**Update command:**
+- Added address flags to flags table (--address, --addresses, --add-address, --remove-address)
+- Updated "Types et formats" section to include addresses
+- Added "Gestion avancée des adresses" section with CLI examples
+- Added "Modifications d'adresses" table in update workflow examples
+
+### Learnings
+
+**Skill documentation consistency patterns:**
+- When adding a new field (address), it must be documented in MANY places:
+  - Types table, format examples, validation prompts, natural language parsing, screenshot extraction, update workflow
+- Consistency is key: use same field names and formats everywhere
+- Check all validation prompt examples and update them all
+
+**Screenshot source probability tables:**
+- Adding a third column (probability) to source tables helps Claude prioritize extraction efforts
+- Different sources have very different likelihoods for address information:
+  - High: Business cards, Courrier/Facture, CV
+  - Medium: Email signatures
+  - Low: LinkedIn profiles (city only), Phone screenshots
+
+**Address-specific documentation:**
+- Address removal uses content matching (unlike exact value matching for phones/emails)
+- This is documented but important to highlight since behavior differs
+- French auto-detection is a key feature that should be mentioned multiple times
+
+**Documentation-only stories:**
+- This story only modified SKILL.md and CLAUDE.md, not CLI code
+- No Go code changes = no additional unit tests needed
+- `make check` still runs but uses cached test results
+
+**SKILL.md growth considerations:**
+- The file is now over 1250 lines of documentation
+- Clear section structure and headers make navigation manageable
+- Consider using a table of contents if file grows much further
+
+---
+
+## 2026-01-15 - US-00027 - Phone number internationalization with France default
+
+**Status:** Completed successfully
+
+### What was implemented
+
+Added automatic phone number normalization to international format with France (+33) as the default country code.
+
+**Service layer (internal/contacts/service.go):**
+- Added `NormalizePhoneNumber()` function (exported for cross-package use)
+- Handles multiple input formats:
+  - French local: `0612345678` → `+33612345678`
+  - French with spaces: `06 12 34 56 78` → `+33612345678`
+  - French with dots: `06.12.34.56.78` → `+33612345678`
+  - International prefix: `0033612345678` → `+33612345678`
+  - Already international: `+33612345678` → `+33612345678` (preserved)
+  - US format: `+1-555-123-4567` → `+15551234567` (cleaned)
+- Removes all non-essential characters (spaces, dashes, dots, parentheses)
+- Integrated in CreateContact (1 location) and UpdateContact (4 locations)
+
+**Unit tests (internal/contacts/service_test.go):**
+- Added `TestNormalizePhoneNumber` with 15 comprehensive test cases
+- Tests cover: French local formats, international formats, edge cases, empty input
+
+### Files changed
+
+- `internal/contacts/service.go` - Added NormalizePhoneNumber function, integrated in CreateContact/UpdateContact
+- `internal/contacts/service_test.go` - Added 15 test cases for phone normalization
+- `CLAUDE.md` - Added "Phone Number Normalization" section with rules and examples
+- `README.md` - Added feature bullet and phone normalization examples
+
+### Learnings
+
+**Phone number normalization rules:**
+- French local numbers start with `0` and have 10 digits
+- Removing the leading `0` and adding `+33` converts to international format
+- International prefix `00` can be converted to `+`
+- All formatting characters (spaces, dashes, dots, parentheses) should be stripped for consistency
+
+**Implementation patterns:**
+- Using `strings.Builder` for efficient character-by-character cleaning
+- Exporting the function (capital N) allows use across packages
+- Normalizing at service layer ensures consistency regardless of entry point (CLI or future MCP)
+- For RemovePhones operation, the removal value must also be normalized for accurate comparison
+
+**Test coverage:**
+- 15 test cases ensure comprehensive coverage of input formats
+- Table-driven tests make it easy to add new cases
+- Edge cases include empty strings, already-normalized numbers, and various formatting styles
+
+---
+
+## 2026-01-15 - Backlog Update: MCP Server and Cloud Run Deployment
+
+**Status:** Backlog created - 14 new user stories (US-00027 to US-00040)
+
+### What was added to the backlog
+
+Created comprehensive backlog for major new features spanning 4 phases:
+
+**Phase 9: Phone Number Internationalization (1 story)**
+- US-00027: Phone number internationalization with France default (+33)
+
+**Phase 10: MCP HTTP Streamable Server (3 stories)**
+- US-00028: Create MCP server command structure using official mcp-go SDK
+- US-00029: Implement MCP tools for contacts operations (5 tools)
+- US-00030: MCP API Key middleware for authentication
+
+**Phase 11: Terraform Infrastructure (5 stories)**
+- US-00031: Initialize infrastructure project structure (config.yaml, init/, iac/)
+- US-00032: Cloud Run service configuration (Artifact Registry, Cloud Build, IAM)
+- US-00033: Firestore database and indexes for API keys
+- US-00034: Secret Manager for OAuth credentials
+- US-00035: Makefile deployment targets + Dockerfile
+
+**Phase 12: OAuth Authentication Flow (5 stories)**
+- US-00036: OAuth authentication endpoint (/auth)
+- US-00037: API Key generation (UUID v4) and Firestore storage
+- US-00038: OAuth success page with API Key display
+- US-00039: MCP server integration with per-user tokens
+- US-00040: Document MCP server deployment and usage
+
+### Configuration decisions
+
+| Setting | Value |
+|---------|-------|
+| Terraform prefix | scmgcontacts |
+| GCP project | Configured in config.yaml |
+| OAuth credentials | ~/.credentials/scm-pwd.json |
+| API Key format | UUID v4 |
+| MCP SDK | github.com/modelcontextprotocol/go-sdk (official) |
+| Firestore location | Same project as Cloud Run |
+| Cloud Run auth | Unauthenticated (API key at app level) |
+
+### Architecture overview
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     Cloud Run (MCP Server)                       │
+├─────────────────────────────────────────────────────────────────┤
+│  /auth          → Start OAuth flow                               │
+│  /auth/callback → Exchange code, generate API Key                │
+│  /auth/success  → Display API Key to user                        │
+│  /mcp/*         → MCP protocol endpoints (protected)             │
+├─────────────────────────────────────────────────────────────────┤
+│  API Key Middleware → Validates Bearer token                     │
+│  Token from Firestore → Per-user Google API auth                 │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                        Firestore                                 │
+│  api_keys/{uuid}                                                 │
+│    ├── refresh_token                                             │
+│    ├── access_token                                              │
+│    ├── user_email                                                │
+│    ├── created_at                                                │
+│    └── last_used                                                 │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                     Secret Manager                               │
+│  scm-pwd-oauth-creds → OAuth client_id/secret                    │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Files changed
+
+- **Modified:**
+  - `stories.yaml` - Added 14 new user stories (US-00027 to US-00040)
+  - `progress.md` - Added this entry
+
+### Next steps
+
+Stories should be implemented in order:
+1. US-00027: Phone normalization (standalone, can be done immediately)
+2. US-00028-30: MCP server (sequential, builds the server)
+3. US-00031-35: Terraform (sequential, creates infrastructure)
+4. US-00036-40: OAuth flow (sequential, adds authentication)
+
+---
+
+## 2026-01-15 - US-00028 - google-contacts: Create MCP server command structure
+
+**Status:** Success
+
+**What was implemented:**
+- Added MCP (Model Context Protocol) server support using official Go SDK
+- Created `internal/mcp/server.go` with server initialization and HTTP handler
+- Added `mcp` command to CLI with --port, --host, --api-key, --firestore-project flags
+- Registered `ping` tool for connectivity testing
+- Implemented Streamable HTTP transport with session-based communication
+- Added graceful shutdown with SIGINT/SIGTERM signal handling
+
+**Files changed:**
+- `go.mod` - Added github.com/modelcontextprotocol/go-sdk/mcp v1.0.0 dependency
+- `go.sum` - Updated dependencies
+- `internal/mcp/server.go` - New MCP server implementation
+- `internal/cli/cli.go` - Added mcpCmd with flags and runMCP handler
+- `CLAUDE.md` - Added MCP server documentation section with tool registration guide
+- `README.md` - Added MCP command usage documentation
+
+**Learnings:**
+- MCP protocol requires full initialization handshake: initialize → initialized notification → then tools/list and tools/call work
+- Session ID (Mcp-Session-Id header) must be preserved across requests after initialization
+- The mcp-go SDK's AddTool function uses generics to infer JSON schemas from Go struct types
+- StreamableHTTPOptions.Stateless should be false for session tracking
+
+**Remaining issues:** None
+
+---
