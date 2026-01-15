@@ -4,7 +4,7 @@ locals {
   config      = local.config_file
 
   # Global fields
-  prefix = local.config.prefix  # Used for AWS/Azure, not GCP
+  prefix = local.config.prefix # Used for AWS/Azure, not GCP
   env    = local.config.env
 
   # GCP configuration

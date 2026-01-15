@@ -995,6 +995,53 @@ make deploy  # Apply changes
 - Structure per file: locals → resources → permissions → outputs
 - NO separate `output.tf` - outputs are inline in each resource file
 
+### Cloud Run Service (iac/workload-mcp.tf)
+
+The MCP server is deployed as a Cloud Run service with the following resources:
+
+**Resources:**
+| Resource | Type | Description |
+|----------|------|-------------|
+| `google_artifact_registry_repository.mcp` | Artifact Registry | Docker repository for container images |
+| `google_cloud_run_v2_service.mcp` | Cloud Run v2 | MCP server service with autoscaling |
+| `google_project_iam_member.mcp_firestore` | IAM | Firestore access for API key storage |
+| `google_project_iam_member.mcp_secretmanager` | IAM | Secret Manager access for OAuth credentials |
+| `google_cloud_run_v2_service_iam_member.mcp_public` | IAM | Public access (API key protection at app level) |
+
+**Configuration (from config.yaml):**
+```yaml
+gcp:
+  resources:
+    cloud_run:
+      name: google-contacts-mcp    # Service name
+      region: europe-west1          # Deployment region
+      cpu: "1"                      # CPU allocation
+      memory: 256Mi                 # Memory limit
+      min_instances: 0              # Scale to zero when idle
+      max_instances: 3              # Maximum scaling
+      allow_unauthenticated: true   # Public access (API key at app level)
+    artifact_registry:
+      name: google-contacts         # Repository name
+      format: DOCKER                # Container format
+```
+
+**Environment Variables:**
+| Variable | Value | Description |
+|----------|-------|-------------|
+| `FIRESTORE_PROJECT` | `${project_id}` | GCP project for Firestore API key storage |
+| `PORT` | `8080` | Server listening port |
+| `ENVIRONMENT` | `${env}` | Environment name (prd, dev, etc.) |
+| `PROJECT_ID` | `${project_id}` | GCP project ID |
+
+**Service Account Permissions:**
+- `roles/datastore.user` - Read/write access to Firestore (API keys collection)
+- `roles/secretmanager.secretAccessor` - Read access to OAuth credentials secret
+
+**Outputs:**
+- `mcp_url` - Cloud Run service URL (https://google-contacts-mcp-xxx.run.app)
+- `mcp_service_account` - Service account email
+- `artifact_registry_url` - Docker registry URL for pushing images
+
 ### Adding New Resources
 
 1. Create a new `.tf` file in `iac/` named by feature

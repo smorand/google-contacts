@@ -1755,3 +1755,38 @@ Stories should be implemented in order:
 **Remaining issues:** None
 
 ---
+
+## 2026-01-15 - US-00032 - terraform: Cloud Run service configuration
+
+**Status:** Success
+
+**What was implemented:**
+- Created `iac/workload-mcp.tf` with complete Cloud Run v2 service deployment
+- Artifact Registry repository resource for Docker container images
+- Cloud Run v2 service with autoscaling (min=0, max=3 instances)
+- Environment variables: FIRESTORE_PROJECT, PORT, ENVIRONMENT, PROJECT_ID
+- IAM permissions for service account (Firestore datastore.user, Secret Manager secretAccessor)
+- Public access binding (allUsers can invoke, API key protection at app level)
+- Removed example-workload.tf template file
+
+**Files changed:**
+- `iac/workload-mcp.tf` - New Cloud Run workload terraform file with all resources
+- `iac/local.tf` - Minor terraform fmt spacing fix
+- `iac/example-workload.tf` - Deleted (replaced by workload-mcp.tf)
+- `CLAUDE.md` - Added comprehensive Cloud Run documentation section
+- `stories.yaml` - Updated US-00032 `passes: false` to `passes: true`
+
+**Learnings:**
+- Cloud Run v2 API (`google_cloud_run_v2_service`) has different syntax from v1
+  - Uses `scaling { min_instance_count, max_instance_count }` instead of annotations
+  - Uses `traffic { type = "TRAFFIC_TARGET_ALLOCATION_TYPE_LATEST" }` instead of `latest_revision`
+  - Outputs use `.uri` instead of `.status[0].url`
+- Service account email for init-created accounts follows pattern: `{prefix}-cloudrun-{env}@{project_id}.iam.gserviceaccount.com`
+- IAM member resource for Cloud Run v2 uses `google_cloud_run_v2_service_iam_member`
+- `cpu_idle = true` allows CPU throttling when idle for cost savings
+- Terraform validate requires provider initialization; use `terraform init -backend=false` for syntax-only validation
+- The `make plan` command requires `init-deploy` first (checks for provider.tf existence)
+
+**Remaining issues:** None
+
+---
