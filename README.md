@@ -131,6 +131,44 @@ make cloud-run-deploy
 | `PORT` | Server listening port (default: 8080) |
 | `FIRESTORE_PROJECT` | GCP project for API key validation |
 
+## MCP Server
+
+The project includes an MCP (Model Context Protocol) server that enables AI assistants to manage Google Contacts remotely.
+
+### Starting the Server
+
+```bash
+# Start on default port (8080)
+google-contacts mcp
+
+# Start with API key authentication
+google-contacts mcp --api-key "your-secret-key"
+
+# Start with Firestore-based authentication (production)
+google-contacts mcp \
+  --firestore-project "my-gcp-project" \
+  --secret-name "oauth-credentials" \
+  --base-url "https://my-cloudrun-url.run.app"
+```
+
+### OAuth Authentication
+
+When running with Firestore integration, the server exposes OAuth endpoints:
+
+| Endpoint | Description |
+|----------|-------------|
+| `/auth` | Initiates OAuth flow - redirects to Google consent |
+| `/auth/callback` | OAuth callback - exchanges code for tokens |
+| `/health` | Health check endpoint |
+
+**OAuth Flow:**
+1. User visits `/auth` endpoint
+2. Server generates CSRF protection state token
+3. Redirects to Google OAuth consent page
+4. Google redirects back to `/auth/callback` with authorization code
+5. Server exchanges code for refresh token
+6. API key is generated and stored in Firestore (upcoming feature)
+
 ### GCP Configuration
 
 The Makefile reads configuration from `config.yaml`:

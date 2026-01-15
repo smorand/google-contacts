@@ -413,6 +413,74 @@ srv, err := contacts.GetPeopleService(ctx)
 
 This allows the MCP server to handle requests from multiple users, each with their own OAuth credentials stored in Firestore.
 
+#### OAuth Authentication Endpoints
+
+When running with Firestore integration (`--firestore-project`), the MCP server exposes OAuth endpoints for generating API keys:
+
+**Endpoints:**
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/auth` | GET | Start OAuth flow - redirects to Google consent |
+| `/auth/callback` | GET | OAuth callback - exchanges code for tokens |
+| `/health` | GET | Health check endpoint (always returns OK) |
+
+**Starting the server with OAuth endpoints:**
+
+```bash
+# With Firestore and Secret Manager
+google-contacts mcp \
+  --firestore-project "my-gcp-project" \
+  --secret-name "oauth-credentials" \
+  --base-url "https://my-cloudrun-url.run.app"
+
+# With Firestore and local credential file (development)
+google-contacts mcp \
+  --firestore-project "my-gcp-project" \
+  --credential-file "$HOME/.credentials/google_credentials.json"
+```
+
+**CLI Flags for OAuth:**
+
+| Flag | Description | Required |
+|------|-------------|----------|
+| `--firestore-project` | GCP project for Firestore API key storage | Yes |
+| `--base-url` | Base URL for OAuth callbacks (e.g., https://example.com) | For production |
+| `--secret-name` | Secret Manager secret name for OAuth credentials | Recommended |
+| `--credential-file` | Local credential file path (fallback) | For development |
+
+**OAuth Flow:**
+
+1. User visits `/auth` endpoint
+2. Server generates cryptographic state token (CSRF protection)
+3. Server redirects to Google OAuth consent page
+4. User authorizes the application
+5. Google redirects to `/auth/callback` with authorization code
+6. Server exchanges code for access + refresh tokens
+7. Server stores refresh token in Firestore (US-00037)
+8. User receives API key for MCP access
+
+**OAuth Credentials:**
+
+The server loads OAuth client credentials from (in priority order):
+1. **Secret Manager**: `projects/{project}/secrets/{secret-name}/versions/latest`
+2. **Local file**: Path specified by `--credential-file` or default `~/.credentials/google_credentials.json`
+
+**State Parameter:**
+
+- Cryptographically secure random token (32 bytes, base64 URL encoded)
+- Stored in-memory with 10-minute expiration
+- Single-use (deleted after validation)
+- Prevents CSRF attacks
+
+**Implementation:**
+
+See `internal/mcp/auth.go` for the AuthHandler implementation:
+- `NewAuthHandler()` - Creates handler with configuration
+- `HandleAuth()` - Initiates OAuth flow
+- `HandleCallback()` - Processes OAuth callback
+- `SetupRoutes()` - Registers HTTP routes
+
 ### Available Tools
 
 All contact management tools are implemented:

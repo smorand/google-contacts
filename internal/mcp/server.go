@@ -26,6 +26,9 @@ type Config struct {
 	Port             int
 	APIKey           string // Static API key for authentication (optional)
 	FirestoreProject string // GCP project for Firestore API key validation (optional)
+	BaseURL          string // Base URL for OAuth callbacks (e.g., https://example.com)
+	SecretName       string // Secret Manager secret name for OAuth credentials
+	CredentialFile   string // Local credential file path (fallback)
 }
 
 // Server wraps the MCP server and HTTP server.
@@ -34,6 +37,7 @@ type Server struct {
 	mcpServer       *mcp.Server
 	httpServer      *http.Server
 	firestoreClient *firestore.Client
+	authHandler     *AuthHandler
 }
 
 // APIKeyDocument represents the structure stored in Firestore for API keys.
@@ -767,15 +771,48 @@ func (s *Server) Run(ctx context.Context) error {
 	// Register tools
 	s.RegisterTools()
 
-	// Create the streamable HTTP handler
+	// Create the streamable HTTP handler for MCP
 	mcpHandler := mcp.NewStreamableHTTPHandler(func(r *http.Request) *mcp.Server {
 		return s.mcpServer
 	}, &mcp.StreamableHTTPOptions{
 		Stateless: false, // Enable session tracking
 	})
 
-	// Wrap with authentication middleware
-	handler := s.authMiddleware(mcpHandler)
+	// Wrap MCP handler with authentication middleware
+	authedMCPHandler := s.authMiddleware(mcpHandler)
+
+	// Create HTTP mux for routing
+	mux := http.NewServeMux()
+
+	// Set up OAuth auth handler if Firestore is configured
+	if s.config.FirestoreProject != "" {
+		// Determine credential file path (default to local credentials)
+		credFile := s.config.CredentialFile
+		if credFile == "" {
+			credFile = LocalCredentialsPath()
+		}
+
+		s.authHandler = NewAuthHandler(&AuthHandlerConfig{
+			BaseURL:        s.config.BaseURL,
+			Server:         s,
+			SecretProject:  s.config.FirestoreProject,
+			SecretName:     s.config.SecretName,
+			CredentialFile: credFile,
+		})
+
+		// Register auth routes (not protected by API key auth)
+		s.authHandler.SetupRoutes(mux)
+		log.Println("OAuth authentication endpoints enabled: /auth, /auth/callback")
+	}
+
+	// Health check endpoint (not protected by auth)
+	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("OK"))
+	})
+
+	// MCP endpoint (protected by API key auth)
+	mux.Handle("/", authedMCPHandler)
 
 	// Log authentication mode
 	if s.config.APIKey != "" {
@@ -790,7 +827,7 @@ func (s *Server) Run(ctx context.Context) error {
 	addr := fmt.Sprintf("%s:%d", s.config.Host, s.config.Port)
 	s.httpServer = &http.Server{
 		Addr:    addr,
-		Handler: handler,
+		Handler: mux,
 	}
 
 	// Setup graceful shutdown
