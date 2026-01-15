@@ -25,8 +25,10 @@ google-contacts/
 ├── internal/
 │   ├── cli/
 │   │   └── cli.go            # CLI commands and flags
-│   └── contacts/
-│       └── service.go        # People API service wrapper
+│   ├── contacts/
+│   │   └── service.go        # People API service wrapper
+│   └── mcp/
+│       └── server.go         # MCP server implementation
 └── pkg/
     └── auth/
         └── auth.go           # OAuth2 authentication (duplicated from email-manager)
@@ -39,7 +41,8 @@ google-contacts/
 1. **cmd/google-contacts/main.go** - Minimal entry point, initializes CLI and executes
 2. **internal/cli/cli.go** - Command definitions, flag setup, command handlers
 3. **internal/contacts/service.go** - People API service wrapper with `GetPeopleService()` function
-4. **pkg/auth/auth.go** - OAuth2 authentication (identical to email-manager)
+4. **internal/mcp/server.go** - MCP server implementation for remote AI access
+5. **pkg/auth/auth.go** - OAuth2 authentication (identical to email-manager)
 
 ### Command Structure
 
@@ -50,6 +53,7 @@ google-contacts
 ├── show                 # Show contact details
 ├── update               # Update existing contact
 ├── delete               # Delete a contact
+├── mcp                  # Start MCP server for remote access
 └── version              # Print version
 ```
 
@@ -59,6 +63,7 @@ google-contacts
 - `google.golang.org/api/people/v1` - People API client
 - `golang.org/x/oauth2` - OAuth2 authentication
 - `github.com/fatih/color` - Terminal colors
+- `github.com/modelcontextprotocol/go-sdk/mcp` - MCP server SDK
 
 ## Authentication Flow
 
@@ -280,6 +285,111 @@ func TestExtractID(t *testing.T) {
 - Always use proper error wrapping with `%w` format
 - Follow Go coding standards defined in golang skill
 - pkg/auth is duplicated from email-manager, keep them in sync manually
+
+## MCP Server
+
+The project includes an MCP (Model Context Protocol) server that enables AI assistants to manage contacts remotely over HTTP.
+
+### Server Architecture
+
+```
+internal/mcp/
+└── server.go           # MCP server setup and HTTP handler
+```
+
+### Starting the Server
+
+```bash
+# Start on default port (8080)
+google-contacts mcp
+
+# Start on custom port
+google-contacts mcp --port 3000
+
+# Start with API key authentication
+google-contacts mcp --api-key "your-secret-key"
+
+# Bind to all interfaces (for remote access)
+google-contacts mcp --host 0.0.0.0 --port 8080
+```
+
+### Available Tools
+
+Currently implemented:
+- **ping** - Test connectivity with the server
+
+Future tools (to be implemented in US-00029):
+- create_contact - Create a new contact
+- search_contacts - Search contacts by query
+- get_contact - Get contact details by ID
+- update_contact - Update an existing contact
+- delete_contact - Delete a contact
+
+### MCP Protocol
+
+The server uses the official MCP Go SDK with Streamable HTTP transport:
+- Protocol version: 2024-11-05
+- Session-based communication (Mcp-Session-Id header)
+- SSE (Server-Sent Events) for streaming responses
+
+### Adding New Tools
+
+To add a new MCP tool:
+
+```go
+// In internal/mcp/server.go, inside RegisterTools()
+
+// Define input/output types
+type MyInput struct {
+    Field string `json:"field" jsonschema:"field description"`
+}
+
+type MyOutput struct {
+    Result string `json:"result" jsonschema:"result description"`
+}
+
+// Register the tool
+mcp.AddTool(s.mcpServer, &mcp.Tool{
+    Name:        "my_tool",
+    Description: "Tool description for AI assistants",
+}, func(ctx context.Context, req *mcp.CallToolRequest, input MyInput) (
+    *mcp.CallToolResult,
+    MyOutput,
+    error,
+) {
+    // Tool implementation
+    return nil, MyOutput{Result: input.Field}, nil
+})
+```
+
+### Testing MCP Server
+
+```bash
+# Initialize session
+curl -sD - -X POST http://localhost:8080/ \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","clientInfo":{"name":"test","version":"1.0"},"capabilities":{}}}'
+
+# Extract Mcp-Session-Id from response headers, then:
+
+# Send initialized notification
+curl -X POST http://localhost:8080/ \
+  -H "Content-Type: application/json" \
+  -H "Mcp-Session-Id: SESSION_ID" \
+  -d '{"jsonrpc":"2.0","method":"notifications/initialized","params":{}}'
+
+# List tools
+curl -X POST http://localhost:8080/ \
+  -H "Content-Type: application/json" \
+  -H "Mcp-Session-Id: SESSION_ID" \
+  -d '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}'
+
+# Call a tool
+curl -X POST http://localhost:8080/ \
+  -H "Content-Type: application/json" \
+  -H "Mcp-Session-Id: SESSION_ID" \
+  -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"ping","arguments":{}}}'
+```
 
 ## People API Reference
 
