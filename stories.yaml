@@ -2011,7 +2011,7 @@
   - Token refresh triggered when access_token expired
   - last_used timestamp updated after validation
   - user_email stored correctly from OAuth response
-  passes: false
+  passes: true
 - id: US-00038
   title: 'google-contacts: OAuth success page with API Key display'
   priority: 38

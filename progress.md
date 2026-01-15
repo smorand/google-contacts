@@ -1909,3 +1909,34 @@ Stories should be implemented in order:
 **Remaining issues:** None
 
 ---
+
+## 2026-01-15 - US-00037 - API Key generation and Firestore storage
+
+**Status:** Success
+
+**What was implemented:**
+- UUID v4 API key generation using `github.com/google/uuid` package
+- `GenerateAPIKey()` function that returns a new UUID v4 string
+- `StoreAPIKey()` method on Server to persist tokens and metadata to Firestore
+- `UpdateLastUsed()` method to update last_used timestamp on each API validation
+- Enhanced `APIKeyDocument` struct with additional fields: access_token, token_expiry, last_used
+- Updated OAuth callback to generate and store API key after successful authentication
+- Asynchronous last_used timestamp update (non-blocking goroutine)
+
+**Files changed:**
+- `internal/mcp/auth.go` - Added GenerateAPIKey() function, updated serveCallbackResponse() to generate and store API key
+- `internal/mcp/server.go` - Added oauth2 import, enhanced APIKeyDocument struct, added StoreAPIKey() and UpdateLastUsed() methods, updated validateAPIKey() to call UpdateLastUsed asynchronously
+- `internal/mcp/auth_test.go` - Added TestGenerateAPIKey and TestGenerateAPIKey_UniquePerCall tests
+- `CLAUDE.md` - Updated APIKeyDocument struct documentation with new fields (access_token, token_expiry, last_used), added API key generation functions documentation, updated Firestore collection structure
+- `stories.yaml` - Updated US-00037 passes: true
+
+**Learnings:**
+- UUID v4 generation using google/uuid package is straightforward: `uuid.New().String()`
+- Firestore document updates can use `[]firestore.Update` with Path/Value pairs for atomic field updates
+- Asynchronous operations with goroutines should use a fresh context (context.Background()) to avoid parent context cancellation issues
+- OAuth2 tokens contain both access_token (short-lived ~1hr) and refresh_token (long-lived) - storing both enables future token refresh logic
+- API key document ID being the key itself enables O(1) lookup performance
+
+**Remaining issues:** None
+
+---

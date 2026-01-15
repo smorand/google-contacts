@@ -17,6 +17,7 @@ import (
 
 	secretmanager "cloud.google.com/go/secretmanager/apiv1"
 	"cloud.google.com/go/secretmanager/apiv1/secretmanagerpb"
+	"github.com/google/uuid"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	gmail "google.golang.org/api/gmail/v1"
@@ -377,26 +378,52 @@ func (h *AuthHandler) getUserEmail(ctx context.Context, config *oauth2.Config, t
 	return "", fmt.Errorf("no email address found")
 }
 
-// serveCallbackResponse sends the success response after OAuth callback.
-// This temporary implementation returns token info for testing.
-// Will be replaced with API key generation in US-00037.
+// serveCallbackResponse generates an API key, stores it with the token, and responds.
 func (h *AuthHandler) serveCallbackResponse(w http.ResponseWriter, token *oauth2.Token, userEmail string) {
-	// For now, return a JSON response with token info
-	// In US-00037, this will generate an API key and store the token in Firestore
+	ctx := context.Background()
+
+	// Check if Firestore client is available
+	if h.server.firestoreClient == nil {
+		log.Printf("Firestore client not available - cannot generate API key")
+		http.Error(w, "Server configuration error: Firestore not configured", http.StatusInternalServerError)
+		return
+	}
+
+	// Generate UUID v4 API key
+	apiKey := GenerateAPIKey()
+
+	// Store the API key with tokens in Firestore
+	err := h.server.StoreAPIKey(ctx, apiKey, token, userEmail)
+	if err != nil {
+		log.Printf("Failed to store API key: %v", err)
+		http.Error(w, fmt.Sprintf("Failed to store API key: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	log.Printf("API key generated and stored for user: %s", userEmail)
+
+	// Return success response with the API key
 	response := map[string]interface{}{
-		"success":               true,
-		"message":               "OAuth authentication successful",
-		"user_email":            userEmail,
-		"has_refresh_token":     token.RefreshToken != "",
-		"access_token_expiry":   token.Expiry.Format(time.RFC3339),
-		"next_step":             "API key generation will be implemented in US-00037",
-		"refresh_token_preview": truncateToken(token.RefreshToken),
+		"success":    true,
+		"message":    "OAuth authentication successful",
+		"api_key":    apiKey,
+		"user_email": userEmail,
+		"server_url": h.baseURL,
+		"usage": map[string]string{
+			"header":  "Authorization: Bearer " + apiKey,
+			"example": fmt.Sprintf("curl -H 'Authorization: Bearer %s' %s/", apiKey, h.baseURL),
+		},
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		log.Printf("Failed to encode response: %v", err)
 	}
+}
+
+// GenerateAPIKey generates a new UUID v4 API key.
+func GenerateAPIKey() string {
+	return uuid.New().String()
 }
 
 // truncateToken returns a truncated preview of a token for logging.

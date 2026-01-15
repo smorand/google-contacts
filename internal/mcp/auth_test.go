@@ -245,3 +245,48 @@ func TestGetBaseURL(t *testing.T) {
 		})
 	}
 }
+
+func TestGenerateAPIKey(t *testing.T) {
+	// Generate multiple keys and verify they are valid UUIDs
+	keys := make(map[string]bool)
+	for i := 0; i < 10; i++ {
+		key := GenerateAPIKey()
+		if key == "" {
+			t.Error("GenerateAPIKey() returned empty string")
+		}
+
+		// UUID v4 format: 8-4-4-4-12 (total 36 chars including hyphens)
+		if len(key) != 36 {
+			t.Errorf("GenerateAPIKey() returned %q, expected 36 char UUID", key)
+		}
+
+		// Check for duplicates
+		if keys[key] {
+			t.Errorf("GenerateAPIKey() returned duplicate key: %s", key)
+		}
+		keys[key] = true
+
+		// Check UUID format (8-4-4-4-12 pattern)
+		parts := strings.Split(key, "-")
+		if len(parts) != 5 {
+			t.Errorf("GenerateAPIKey() = %q, expected 5 parts separated by hyphens", key)
+		}
+		expectedLengths := []int{8, 4, 4, 4, 12}
+		for j, part := range parts {
+			if len(part) != expectedLengths[j] {
+				t.Errorf("GenerateAPIKey() part %d = %q (len %d), expected len %d", j, part, len(part), expectedLengths[j])
+			}
+		}
+	}
+}
+
+func TestGenerateAPIKey_UniquePerCall(t *testing.T) {
+	// Verify that multiple calls generate unique keys
+	key1 := GenerateAPIKey()
+	key2 := GenerateAPIKey()
+	key3 := GenerateAPIKey()
+
+	if key1 == key2 || key2 == key3 || key1 == key3 {
+		t.Errorf("GenerateAPIKey() returned duplicate keys: %s, %s, %s", key1, key2, key3)
+	}
+}
