@@ -139,7 +139,8 @@ resource "google_cloud_run_v2_service" "mcp" {
   }
 
   depends_on = [
-    google_artifact_registry_repository.mcp
+    google_artifact_registry_repository.mcp,
+    docker_registry_image.mcp,
   ]
 }
 

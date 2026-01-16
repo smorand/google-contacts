@@ -16,7 +16,7 @@ Following golang skill conventions:
 google-contacts/
 ├── go.mod                    # Module at root
 ├── go.sum
-├── Makefile                  # Build automation + Terraform + Docker targets
+├── Makefile                  # Build automation + Terraform targets
 ├── Dockerfile                # MCP server container image
 ├── README.md                 # User documentation
 ├── CLAUDE.md                 # AI development guide
@@ -42,8 +42,11 @@ google-contacts/
 │   └── services.tf
 └── iac/                      # Terraform infrastructure (Cloud Run, Firestore, etc.)
     ├── provider.tf.template
+    ├── provider.tf           # Generated (after init-deploy)
     ├── local.tf
-    └── *.tf                  # Resource files
+    ├── docker.tf             # Docker build and push via kreuzwerker/docker provider
+    ├── workload-mcp.tf       # Cloud Run service
+    └── *.tf                  # Other resource files
 ```
 
 ## Architecture
@@ -1096,21 +1099,32 @@ make deploy  # Apply changes
 | `init-plan` | Plan initialization resources |
 | `init-deploy` | Deploy initialization (state backend, service accounts) |
 | `init-destroy` | Destroy initialization (DANGEROUS!) |
-| `plan` | Plan main infrastructure changes |
-| `deploy` | Deploy main infrastructure |
+| `plan` | Plan main infrastructure changes (includes Docker build preview) |
+| `deploy` | Deploy main infrastructure (builds Docker image via Cloud Build) |
 | `undeploy` | Destroy main infrastructure |
 | `update-backend` | Regenerate iac/provider.tf from template |
 
-**Docker/Cloud Run Deployment Targets:**
-| Target | Description |
-|--------|-------------|
-| `docker-build` | Build container image locally |
-| `docker-push` | Push container to Artifact Registry |
-| `cloud-run-deploy` | Full deployment (build + push + deploy) |
+**Docker/Cloud Run Deployment (DEPRECATED):**
+
+Docker builds are now managed by Terraform via Cloud Build. The following targets are deprecated:
+- `docker-build` - Use `make deploy` instead
+- `docker-push` - Use `make deploy` instead
+- `cloud-run-deploy` - Use `make deploy` instead
+
+The `make deploy` command now automatically:
+1. Builds Docker image via Cloud Build (serverless, no local Docker required)
+2. Pushes to Artifact Registry
+3. Deploys to Cloud Run
 
 ### Docker Deployment
 
-The project includes a Dockerfile for containerized deployment of the MCP server.
+Docker image building is managed by Terraform using the [kreuzwerker/docker](https://registry.terraform.io/providers/kreuzwerker/docker/latest) provider.
+
+**How it works:**
+- `iac/docker.tf` uses `docker_image` to build locally and `docker_registry_image` to push
+- Builds happen on your local Docker daemon (requires Docker to be running)
+- Push uses gcloud authentication via `~/.docker/config.json`
+- The `make deploy` command handles everything: build → push → deploy
 
 **Dockerfile:**
 - Multi-stage build using Go 1.25
@@ -1125,37 +1139,37 @@ The project includes a Dockerfile for containerized deployment of the MCP server
 | `PORT` | Server listening port (default: 8080) |
 | `FIRESTORE_PROJECT` | GCP project for API key validation |
 
-**Building Locally:**
+**Prerequisites:**
 ```bash
-# Build the image
-make docker-build
+# Docker daemon must be running
+docker info
 
-# Run locally (no auth)
-docker run -p 8080:8080 google-contacts-mcp:latest
-
-# Run with static API key
-docker run -p 8080:8080 -e API_KEY=my-secret google-contacts-mcp:latest --api-key "$API_KEY"
+# Configure gcloud for Artifact Registry
+gcloud auth configure-docker europe-west1-docker.pkg.dev
 ```
 
 **Deploying to Cloud Run:**
 ```bash
-# Full deployment (builds, pushes, and deploys)
-make cloud-run-deploy
-
-# Or step by step:
-make docker-build    # Build image
-make docker-push     # Push to Artifact Registry
-# Then use gcloud run deploy manually
+# Standard deployment workflow
+make plan    # Review changes (shows Docker build if source changed)
+make deploy  # Builds locally + pushes to Artifact Registry + deploys to Cloud Run
 ```
 
-**Configuration:**
-The Makefile reads GCP settings from `config.yaml`:
-- `GCP_PROJECT`: From `gcp.project_id`
-- `GCP_REGION`: From `gcp.resources.cloud_run.region`
+**Build Triggers:**
 
-Override with environment variables if needed:
+The Docker build is triggered when any of these files change:
+- `Dockerfile`
+- `go.mod`
+- `go.sum`
+- `cmd/google-contacts/main.go`
+
+**Manual Local Docker Build (for development):**
 ```bash
-GCP_PROJECT=my-project GCP_REGION=us-central1 make cloud-run-deploy
+# Build locally
+docker build -t google-contacts-mcp:latest .
+
+# Run locally
+docker run -p 8080:8080 google-contacts-mcp:latest
 ```
 
 ### File Organization Rules
@@ -1165,6 +1179,63 @@ GCP_PROJECT=my-project GCP_REGION=us-central1 make cloud-run-deploy
 - Resource files named by feature: `workload-mcp.tf`, `database-firestore.tf`
 - Structure per file: locals → resources → permissions → outputs
 - NO separate `output.tf` - outputs are inline in each resource file
+
+### Docker Build (iac/docker.tf)
+
+Docker images are built and pushed using the [kreuzwerker/docker](https://registry.terraform.io/providers/kreuzwerker/docker/latest) Terraform provider.
+
+**Resources:**
+| Resource | Type | Description |
+|----------|------|-------------|
+| `docker_image.mcp` | docker_image | Builds Docker image locally |
+| `docker_registry_image.mcp` | docker_registry_image | Pushes image to Artifact Registry |
+
+**Build Triggers:**
+The build is triggered when any of these files change:
+- `Dockerfile` (container configuration)
+- `go.mod` (dependencies)
+- `go.sum` (dependency checksums)
+- `cmd/google-contacts/main.go` (entry point)
+
+**How it works:**
+```hcl
+# Build locally
+resource "docker_image" "mcp" {
+  name = local.mcp_image
+  build {
+    context    = "${path.root}/.."
+    dockerfile = "Dockerfile"
+  }
+  triggers = {
+    dockerfile_hash = filesha256("${path.root}/../Dockerfile")
+    go_mod_hash     = filesha256("${path.root}/../go.mod")
+    # ...
+  }
+}
+
+# Push to Artifact Registry
+resource "docker_registry_image" "mcp" {
+  name         = docker_image.mcp.name
+  keep_remotely = true
+  triggers = {
+    image_id = docker_image.mcp.image_id
+  }
+}
+```
+
+**Benefits over null_resource:**
+- Proper Terraform state management
+- Only rebuilds when source files change (no timestamp trick)
+- Tracks image digest in state
+- Better error handling and rollback
+
+**Requirements:**
+- Local Docker daemon must be running
+- `gcloud auth configure-docker` for Artifact Registry authentication
+
+**Outputs:**
+- `docker_image` - Full Docker image URL in Artifact Registry
+- `docker_image_digest` - SHA256 digest of the pushed image
 
 ### Cloud Run Service (iac/workload-mcp.tf)
 
