@@ -63,104 +63,19 @@ func TestExtractBearerToken(t *testing.T) {
 	}
 }
 
-func TestValidateAPIKey_NoAuthConfigured(t *testing.T) {
-	// When no auth is configured, all requests should be allowed
+func TestAuthMiddleware_NoToken(t *testing.T) {
+	// When no token is provided, middleware should return 401 with WWW-Authenticate header
 	cfg := &Config{
-		Host:             "localhost",
-		Port:             8080,
-		APIKey:           "",
-		FirestoreProject: "",
+		Host:    "localhost",
+		Port:    8080,
+		BaseURL: "https://example.com",
 	}
 	server := NewServer(cfg)
-	ctx := context.Background()
+	// Initialize OAuth2 server so middleware has it
+	server.oauth2Server = NewOAuth2Server(&OAuth2ServerConfig{
+		BaseURL: cfg.BaseURL,
+	})
 
-	refreshToken, valid, err := server.validateAPIKey(ctx, "")
-	if err != nil {
-		t.Errorf("unexpected error: %v", err)
-	}
-	if !valid {
-		t.Error("expected valid=true when no auth configured")
-	}
-	if refreshToken != "" {
-		t.Errorf("expected empty refresh token, got %q", refreshToken)
-	}
-
-	// Even with a random API key, should be valid
-	refreshToken, valid, err = server.validateAPIKey(ctx, "some-key")
-	if err != nil {
-		t.Errorf("unexpected error: %v", err)
-	}
-	if !valid {
-		t.Error("expected valid=true when no auth configured")
-	}
-	if refreshToken != "" {
-		t.Errorf("expected empty refresh token, got %q", refreshToken)
-	}
-}
-
-func TestValidateAPIKey_StaticKey(t *testing.T) {
-	cfg := &Config{
-		Host:             "localhost",
-		Port:             8080,
-		APIKey:           "secret-key-123",
-		FirestoreProject: "",
-	}
-	server := NewServer(cfg)
-	ctx := context.Background()
-
-	tests := []struct {
-		name               string
-		apiKey             string
-		expectedValid      bool
-		expectedHasRefresh bool
-	}{
-		{
-			name:               "correct static key",
-			apiKey:             "secret-key-123",
-			expectedValid:      true,
-			expectedHasRefresh: false,
-		},
-		{
-			name:               "wrong static key",
-			apiKey:             "wrong-key",
-			expectedValid:      false,
-			expectedHasRefresh: false,
-		},
-		{
-			name:               "empty key when auth required",
-			apiKey:             "",
-			expectedValid:      false,
-			expectedHasRefresh: false,
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			refreshToken, valid, err := server.validateAPIKey(ctx, tc.apiKey)
-			if err != nil {
-				t.Errorf("unexpected error: %v", err)
-			}
-			if valid != tc.expectedValid {
-				t.Errorf("valid = %v, want %v", valid, tc.expectedValid)
-			}
-			hasRefresh := refreshToken != ""
-			if hasRefresh != tc.expectedHasRefresh {
-				t.Errorf("hasRefresh = %v, want %v", hasRefresh, tc.expectedHasRefresh)
-			}
-		})
-	}
-}
-
-func TestAuthMiddleware_NoAuthConfigured(t *testing.T) {
-	cfg := &Config{
-		Host:             "localhost",
-		Port:             8080,
-		APIKey:           "",
-		FirestoreProject: "",
-	}
-	server := NewServer(cfg)
-
-	// Create a test handler that records if it was called
 	called := false
 	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		called = true
@@ -169,191 +84,35 @@ func TestAuthMiddleware_NoAuthConfigured(t *testing.T) {
 
 	middleware := server.authMiddleware(nextHandler)
 
-	// Request without any auth header should succeed
+	// Request without any auth header should get 401
 	req := httptest.NewRequest(http.MethodPost, "/", nil)
 	rec := httptest.NewRecorder()
 
 	middleware.ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusOK {
-		t.Errorf("expected status 200, got %d", rec.Code)
+	if rec.Code != http.StatusUnauthorized {
+		t.Errorf("expected status 401, got %d", rec.Code)
 	}
-	if !called {
-		t.Error("expected next handler to be called")
-	}
-}
-
-func TestAuthMiddleware_StaticKey_Valid(t *testing.T) {
-	cfg := &Config{
-		Host:             "localhost",
-		Port:             8080,
-		APIKey:           "secret-key",
-		FirestoreProject: "",
-	}
-	server := NewServer(cfg)
-
-	called := false
-	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		called = true
-		w.WriteHeader(http.StatusOK)
-	})
-
-	middleware := server.authMiddleware(nextHandler)
-
-	req := httptest.NewRequest(http.MethodPost, "/", nil)
-	req.Header.Set("Authorization", "Bearer secret-key")
-	rec := httptest.NewRecorder()
-
-	middleware.ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusOK {
-		t.Errorf("expected status 200, got %d", rec.Code)
-	}
-	if !called {
-		t.Error("expected next handler to be called")
-	}
-}
-
-func TestAuthMiddleware_StaticKey_Invalid(t *testing.T) {
-	cfg := &Config{
-		Host:             "localhost",
-		Port:             8080,
-		APIKey:           "secret-key",
-		FirestoreProject: "",
-	}
-	server := NewServer(cfg)
-
-	called := false
-	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		called = true
-		w.WriteHeader(http.StatusOK)
-	})
-
-	middleware := server.authMiddleware(nextHandler)
-
-	tests := []struct {
-		name       string
-		authHeader string
-	}{
-		{"wrong key", "Bearer wrong-key"},
-		{"no header", ""},
-		{"invalid format", "Basic dXNlcjpwYXNz"},
+	if called {
+		t.Error("expected next handler NOT to be called")
 	}
 
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			called = false
-			req := httptest.NewRequest(http.MethodPost, "/", nil)
-			if tc.authHeader != "" {
-				req.Header.Set("Authorization", tc.authHeader)
-			}
-			rec := httptest.NewRecorder()
-
-			middleware.ServeHTTP(rec, req)
-
-			if rec.Code != http.StatusUnauthorized {
-				t.Errorf("expected status 401, got %d", rec.Code)
-			}
-			if called {
-				t.Error("expected next handler NOT to be called")
-			}
-		})
+	// Verify WWW-Authenticate header is set correctly
+	wwwAuth := rec.Header().Get("WWW-Authenticate")
+	if wwwAuth == "" {
+		t.Error("expected WWW-Authenticate header to be set")
+	}
+	expectedContains := `resource_metadata="https://example.com/.well-known/oauth-protected-resource"`
+	if wwwAuth != `Bearer `+expectedContains {
+		t.Errorf("WWW-Authenticate = %q, want it to contain %q", wwwAuth, expectedContains)
 	}
 }
 
 func TestAuthMiddleware_ContextPropagation(t *testing.T) {
-	// This test verifies that when auth middleware processes a request,
-	// it properly propagates context values to the next handler.
-	// This is crucial for per-user token integration where the refresh token
-	// is injected into context for tool handlers to use.
+	// This test verifies that context values are propagated through the middleware.
+	// Note: We can't fully test the auth flow without mocking the OAuth2 server,
+	// but we can test context propagation using auth package functions.
 
-	cfg := &Config{
-		Host:             "localhost",
-		Port:             8080,
-		APIKey:           "", // No static key - allows any request
-		FirestoreProject: "",
-	}
-	server := NewServer(cfg)
-
-	var receivedCtx context.Context
-	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		receivedCtx = r.Context()
-		w.WriteHeader(http.StatusOK)
-	})
-
-	middleware := server.authMiddleware(nextHandler)
-
-	// Create request with custom context value
-	type testKey string
-	req := httptest.NewRequest(http.MethodPost, "/", nil)
-	req = req.WithContext(context.WithValue(req.Context(), testKey("test"), "value"))
-	rec := httptest.NewRecorder()
-
-	middleware.ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusOK {
-		t.Errorf("expected status 200, got %d", rec.Code)
-	}
-
-	// Verify context was propagated
-	if receivedCtx == nil {
-		t.Fatal("context was not propagated to handler")
-	}
-	if v := receivedCtx.Value(testKey("test")); v != "value" {
-		t.Errorf("context value not propagated, got %v", v)
-	}
-}
-
-func TestAuthMiddleware_RefreshTokenInjection(t *testing.T) {
-	// This test verifies that auth middleware does NOT inject refresh token
-	// when using static API key (refresh token only comes from Firestore).
-	// Static API key mode uses local file-based auth instead.
-
-	cfg := &Config{
-		Host:             "localhost",
-		Port:             8080,
-		APIKey:           "static-key",
-		FirestoreProject: "",
-	}
-	server := NewServer(cfg)
-
-	var receivedCtx context.Context
-	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		receivedCtx = r.Context()
-		w.WriteHeader(http.StatusOK)
-	})
-
-	middleware := server.authMiddleware(nextHandler)
-
-	req := httptest.NewRequest(http.MethodPost, "/", nil)
-	req.Header.Set("Authorization", "Bearer static-key")
-	rec := httptest.NewRecorder()
-
-	middleware.ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusOK {
-		t.Errorf("expected status 200, got %d", rec.Code)
-	}
-
-	// Verify no refresh token in context (static key mode uses file-based auth)
-	if receivedCtx == nil {
-		t.Fatal("context was not propagated to handler")
-	}
-
-	// The refresh token should NOT be present for static key auth
-	// (refresh token injection only happens with Firestore-based keys)
-	token, ok := auth.GetRefreshTokenFromContext(receivedCtx)
-	if ok || token != "" {
-		t.Errorf("expected no refresh token in context for static key auth, got %q", token)
-	}
-}
-
-func TestAuthMiddleware_WithRefreshToken(t *testing.T) {
-	// This test simulates what happens when a refresh token is injected into context.
-	// While we can't test Firestore integration in unit tests, we can verify that
-	// the auth package's context functions work correctly.
-
-	// Test the auth package's context functions directly
 	ctx := context.Background()
 
 	// Initially no token
@@ -379,27 +138,26 @@ func TestAuthMiddleware_WithRefreshToken(t *testing.T) {
 func TestPerUserTokenFlow(t *testing.T) {
 	// This test documents the expected flow for per-user token authentication.
 	// It verifies the integration between components without requiring actual
-	// external services (Firestore, Google API).
+	// external services.
 
-	// 1. User authenticates via OAuth, gets API key stored in Firestore
-	//    (tested in auth_test.go)
+	// 1. User authenticates via OAuth, gets access token from the OAuth flow
 
-	// 2. Request arrives with API key in Authorization header
+	// 2. Request arrives with Bearer token in Authorization header
 	req := httptest.NewRequest(http.MethodPost, "/", nil)
-	apiKey := "test-api-key-uuid"
-	req.Header.Set("Authorization", "Bearer "+apiKey)
+	accessToken := "ya29.xxxxx"
+	req.Header.Set("Authorization", "Bearer "+accessToken)
 
 	// Verify header extraction works
 	extracted := extractBearerToken(req)
-	if extracted != apiKey {
-		t.Errorf("extractBearerToken() = %q, want %q", extracted, apiKey)
+	if extracted != accessToken {
+		t.Errorf("extractBearerToken() = %q, want %q", extracted, accessToken)
 	}
 
-	// 3. When Firestore validates the key, it returns a refresh token
-	//    (this would be mocked in integration tests)
-	simulatedRefreshToken := "1//0gXXXXXX"
+	// 3. When OAuth2 server validates the token, it returns oauth config and token
+	//    (this would be tested in integration tests)
 
-	// 4. Middleware injects refresh token into context
+	// 4. Middleware can inject refresh token into context
+	simulatedRefreshToken := "1//0gXXXXXX"
 	ctx := auth.WithRefreshToken(req.Context(), simulatedRefreshToken)
 
 	// 5. Tool handler receives context with token
@@ -518,5 +276,118 @@ func TestOutputStructTypes(t *testing.T) {
 	}
 	if deleteOut.Message == "" || deleteOut.DeletedID == "" {
 		t.Error("DeleteOutput fields not accessible")
+	}
+}
+
+func TestOAuth2ServerMetadata(t *testing.T) {
+	// Test that OAuth2 metadata endpoints return correct structure
+	s := NewOAuth2Server(&OAuth2ServerConfig{
+		BaseURL: "https://example.com",
+	})
+
+	// Test protected resource metadata endpoint
+	req := httptest.NewRequest(http.MethodGet, "/.well-known/oauth-protected-resource", nil)
+	rec := httptest.NewRecorder()
+	s.HandleProtectedResourceMetadata(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("expected status 200, got %d", rec.Code)
+	}
+
+	contentType := rec.Header().Get("Content-Type")
+	if contentType != "application/json" {
+		t.Errorf("expected Content-Type application/json, got %s", contentType)
+	}
+
+	// Test authorization server metadata endpoint
+	req = httptest.NewRequest(http.MethodGet, "/.well-known/oauth-authorization-server", nil)
+	rec = httptest.NewRecorder()
+	s.HandleAuthorizationServerMetadata(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Errorf("expected status 200, got %d", rec.Code)
+	}
+}
+
+func TestOAuth2ServerRegistration(t *testing.T) {
+	// Test dynamic client registration
+	s := NewOAuth2Server(&OAuth2ServerConfig{
+		BaseURL: "https://example.com",
+	})
+
+	// Test with missing redirect_uris
+	req := httptest.NewRequest(http.MethodPost, "/oauth/register", nil)
+	rec := httptest.NewRecorder()
+	s.HandleClientRegistration(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("expected status 400 for missing body, got %d", rec.Code)
+	}
+
+	// Test GET method not allowed
+	req = httptest.NewRequest(http.MethodGet, "/oauth/register", nil)
+	rec = httptest.NewRecorder()
+	s.HandleClientRegistration(rec, req)
+
+	if rec.Code != http.StatusMethodNotAllowed {
+		t.Errorf("expected status 405 for GET, got %d", rec.Code)
+	}
+}
+
+func TestValidatePKCE(t *testing.T) {
+	// Test PKCE validation
+	tests := []struct {
+		name      string
+		verifier  string
+		challenge string
+		method    string
+		expected  bool
+	}{
+		{
+			name:      "valid S256",
+			verifier:  "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk",
+			challenge: "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM",
+			method:    "S256",
+			expected:  true,
+		},
+		{
+			name:      "invalid verifier",
+			verifier:  "wrong-verifier",
+			challenge: "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM",
+			method:    "S256",
+			expected:  false,
+		},
+		{
+			name:      "unsupported method",
+			verifier:  "test",
+			challenge: "test",
+			method:    "plain",
+			expected:  false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result := validatePKCE(tc.verifier, tc.challenge, tc.method)
+			if result != tc.expected {
+				t.Errorf("validatePKCE() = %v, want %v", result, tc.expected)
+			}
+		})
+	}
+}
+
+func TestGenerateSecureToken(t *testing.T) {
+	// Test token generation
+	token1 := generateSecureToken(32)
+	token2 := generateSecureToken(32)
+
+	if token1 == "" {
+		t.Error("token1 should not be empty")
+	}
+	if token2 == "" {
+		t.Error("token2 should not be empty")
+	}
+	if token1 == token2 {
+		t.Error("tokens should be unique")
 	}
 }

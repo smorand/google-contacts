@@ -13,9 +13,7 @@ import (
 	"syscall"
 	"time"
 
-	"cloud.google.com/go/firestore"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
-	"golang.org/x/oauth2"
 
 	"google-contacts/internal/contacts"
 	"google-contacts/pkg/auth"
@@ -23,34 +21,20 @@ import (
 
 // Config holds the MCP server configuration.
 type Config struct {
-	Host             string
-	Port             int
-	APIKey           string // Static API key for authentication (optional)
-	FirestoreProject string // GCP project for Firestore API key validation (optional)
-	BaseURL          string // Base URL for OAuth callbacks (e.g., https://example.com)
-	SecretName       string // Secret Manager secret name for OAuth credentials
-	CredentialFile   string // Local credential file path (fallback)
+	Host           string
+	Port           int
+	BaseURL        string // Base URL for OAuth callbacks (e.g., https://example.com)
+	SecretName     string // Secret Manager secret name for OAuth credentials
+	SecretProject  string // GCP project for Secret Manager
+	CredentialFile string // Local credential file path (fallback)
 }
 
 // Server wraps the MCP server and HTTP server.
 type Server struct {
-	config          *Config
-	mcpServer       *mcp.Server
-	httpServer      *http.Server
-	firestoreClient *firestore.Client
-	authHandler     *AuthHandler
-}
-
-// APIKeyDocument represents the structure stored in Firestore for API keys.
-// Collection: api_keys, Document ID: the API key itself (UUID v4)
-type APIKeyDocument struct {
-	RefreshToken string `firestore:"refresh_token"`
-	AccessToken  string `firestore:"access_token,omitempty"`
-	TokenExpiry  string `firestore:"token_expiry,omitempty"`
-	UserEmail    string `firestore:"user_email,omitempty"`
-	CreatedAt    string `firestore:"created_at,omitempty"`
-	LastUsed     string `firestore:"last_used,omitempty"`
-	Description  string `firestore:"description,omitempty"`
+	config       *Config
+	mcpServer    *mcp.Server
+	httpServer   *http.Server
+	oauth2Server *OAuth2Server
 }
 
 // NewServer creates a new MCP server with the given configuration.
@@ -67,121 +51,8 @@ func NewServer(cfg *Config) *Server {
 	}
 }
 
-// initFirestore initializes the Firestore client if a project is configured.
-func (s *Server) initFirestore(ctx context.Context) error {
-	if s.config.FirestoreProject == "" {
-		return nil
-	}
-
-	client, err := firestore.NewClient(ctx, s.config.FirestoreProject)
-	if err != nil {
-		return fmt.Errorf("failed to create Firestore client: %w", err)
-	}
-	s.firestoreClient = client
-	log.Printf("Firestore client initialized for project: %s", s.config.FirestoreProject)
-	return nil
-}
-
-// validateAPIKey validates an API key and returns the associated refresh token.
-// Returns:
-// - refreshToken: the OAuth refresh token if valid
-// - valid: true if the API key is valid
-// - err: error if validation failed unexpectedly
-func (s *Server) validateAPIKey(ctx context.Context, apiKey string) (refreshToken string, valid bool, err error) {
-	// No authentication configured - allow unauthenticated access
-	if s.config.APIKey == "" && s.config.FirestoreProject == "" {
-		return "", true, nil
-	}
-
-	// API key is required when auth is configured
-	if apiKey == "" {
-		return "", false, nil
-	}
-
-	// Check static API key first (for local development)
-	if s.config.APIKey != "" {
-		if apiKey == s.config.APIKey {
-			// Static API key is valid, no refresh token (will use local token file)
-			return "", true, nil
-		}
-		// Static key configured but doesn't match
-		return "", false, nil
-	}
-
-	// Check Firestore for API key validation
-	if s.firestoreClient != nil {
-		doc, err := s.firestoreClient.Collection("api_keys").Doc(apiKey).Get(ctx)
-		if err != nil {
-			// Document not found or other error - treat as invalid key
-			log.Printf("API key validation failed: %v", err)
-			return "", false, nil
-		}
-
-		var keyDoc APIKeyDocument
-		if err := doc.DataTo(&keyDoc); err != nil {
-			log.Printf("Failed to parse API key document: %v", err)
-			return "", false, nil
-		}
-
-		if keyDoc.RefreshToken == "" {
-			log.Printf("API key document has no refresh token")
-			return "", false, nil
-		}
-
-		// Update last_used timestamp asynchronously (non-blocking)
-		go s.UpdateLastUsed(context.Background(), apiKey)
-
-		return keyDoc.RefreshToken, true, nil
-	}
-
-	return "", false, nil
-}
-
-// StoreAPIKey stores a new API key with its associated OAuth tokens in Firestore.
-func (s *Server) StoreAPIKey(ctx context.Context, apiKey string, token *oauth2.Token, userEmail string) error {
-	if s.firestoreClient == nil {
-		return fmt.Errorf("Firestore client not initialized")
-	}
-
-	now := time.Now().UTC().Format(time.RFC3339)
-
-	doc := APIKeyDocument{
-		RefreshToken: token.RefreshToken,
-		AccessToken:  token.AccessToken,
-		TokenExpiry:  token.Expiry.UTC().Format(time.RFC3339),
-		UserEmail:    userEmail,
-		CreatedAt:    now,
-		LastUsed:     now,
-	}
-
-	_, err := s.firestoreClient.Collection("api_keys").Doc(apiKey).Set(ctx, doc)
-	if err != nil {
-		return fmt.Errorf("failed to store API key in Firestore: %w", err)
-	}
-
-	log.Printf("API key stored for user: %s", userEmail)
-	return nil
-}
-
-// UpdateLastUsed updates the last_used timestamp for an API key.
-func (s *Server) UpdateLastUsed(ctx context.Context, apiKey string) error {
-	if s.firestoreClient == nil {
-		return nil // Silently ignore if Firestore not configured
-	}
-
-	_, err := s.firestoreClient.Collection("api_keys").Doc(apiKey).Update(ctx, []firestore.Update{
-		{Path: "last_used", Value: time.Now().UTC().Format(time.RFC3339)},
-	})
-	if err != nil {
-		log.Printf("Failed to update last_used for API key: %v", err)
-		return err
-	}
-
-	return nil
-}
-
-// extractBearerToken extracts the API key from the Authorization header.
-// Expected format: "Bearer <api_key>"
+// extractBearerToken extracts the token from the Authorization header.
+// Expected format: "Bearer <token>"
 func extractBearerToken(r *http.Request) string {
 	authHeader := r.Header.Get("Authorization")
 	if authHeader == "" {
@@ -196,43 +67,47 @@ func extractBearerToken(r *http.Request) string {
 	return strings.TrimPrefix(authHeader, bearerPrefix)
 }
 
-// authMiddleware wraps an HTTP handler with API key authentication.
+// authMiddleware wraps an HTTP handler with OAuth2 Bearer token authentication.
+// When no token is provided, returns 401 with WWW-Authenticate header pointing to the
+// OAuth2 protected resource metadata endpoint (RFC 9728).
 func (s *Server) authMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 
-		// Extract API key from Authorization header
-		apiKey := extractBearerToken(r)
+		// Extract Bearer token from Authorization header
+		accessToken := extractBearerToken(r)
 
-		// Validate the API key
-		refreshToken, valid, err := s.validateAPIKey(ctx, apiKey)
+		// If no token provided, return 401 with proper WWW-Authenticate header
+		if accessToken == "" {
+			// RFC 9728: WWW-Authenticate header with resource_metadata URL
+			w.Header().Set("WWW-Authenticate", fmt.Sprintf(
+				`Bearer resource_metadata="%s/.well-known/oauth-protected-resource"`,
+				s.config.BaseURL,
+			))
+			http.Error(w, "Unauthorized: Bearer token required", http.StatusUnauthorized)
+			return
+		}
+
+		// Validate the access token and get OAuth config
+		if s.oauth2Server == nil {
+			http.Error(w, "OAuth not configured", http.StatusInternalServerError)
+			return
+		}
+
+		oauthConfig, token, err := s.oauth2Server.ValidateAccessToken(ctx, accessToken)
 		if err != nil {
-			log.Printf("API key validation error: %v", err)
-			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			log.Printf("Token validation error: %v", err)
+			w.Header().Set("WWW-Authenticate", fmt.Sprintf(
+				`Bearer error="invalid_token", resource_metadata="%s/.well-known/oauth-protected-resource"`,
+				s.config.BaseURL,
+			))
+			http.Error(w, "Unauthorized: invalid token", http.StatusUnauthorized)
 			return
 		}
 
-		if !valid {
-			http.Error(w, "Unauthorized: invalid or missing API key", http.StatusUnauthorized)
-			return
-		}
-
-		// If we have an auth handler with OAuth config, inject it into context
-		// This allows GetClient to use Secret Manager credentials instead of local file
-		if s.authHandler != nil {
-			oauthConfig, err := s.authHandler.getOAuthConfig(ctx)
-			if err != nil {
-				log.Printf("Failed to get OAuth config: %v", err)
-				http.Error(w, "OAuth configuration error", http.StatusInternalServerError)
-				return
-			}
-			ctx = auth.WithOAuthConfig(ctx, oauthConfig)
-		}
-
-		// If we have a refresh token from Firestore, inject it into context
-		if refreshToken != "" {
-			ctx = auth.WithRefreshToken(ctx, refreshToken)
-		}
+		// Inject OAuth config and token into context for People API
+		ctx = auth.WithOAuthConfig(ctx, oauthConfig)
+		ctx = auth.WithAccessToken(ctx, token)
 
 		r = r.WithContext(ctx)
 		next.ServeHTTP(w, r)
@@ -821,16 +696,6 @@ func (s *Server) handleDeleteContact(ctx context.Context, req *mcp.CallToolReque
 
 // Run starts the HTTP server and blocks until shutdown.
 func (s *Server) Run(ctx context.Context) error {
-	// Initialize Firestore client if configured
-	if err := s.initFirestore(ctx); err != nil {
-		return err
-	}
-	defer func() {
-		if s.firestoreClient != nil {
-			s.firestoreClient.Close()
-		}
-	}()
-
 	// Register tools
 	s.RegisterTools()
 
@@ -841,32 +706,32 @@ func (s *Server) Run(ctx context.Context) error {
 		Stateless: false, // Enable session tracking
 	})
 
-	// Wrap MCP handler with authentication middleware
-	authedMCPHandler := s.authMiddleware(mcpHandler)
-
 	// Create HTTP mux for routing
 	mux := http.NewServeMux()
 
-	// Set up OAuth auth handler if Firestore is configured
-	if s.config.FirestoreProject != "" {
-		// Determine credential file path (default to local credentials)
-		credFile := s.config.CredentialFile
-		if credFile == "" {
-			credFile = LocalCredentialsPath()
-		}
-
-		s.authHandler = NewAuthHandler(&AuthHandlerConfig{
-			BaseURL:        s.config.BaseURL,
-			Server:         s,
-			SecretProject:  s.config.FirestoreProject,
-			SecretName:     s.config.SecretName,
-			CredentialFile: credFile,
-		})
-
-		// Register auth routes (not protected by API key auth)
-		s.authHandler.SetupRoutes(mux)
-		log.Println("OAuth authentication endpoints enabled: /auth, /auth/callback")
+	// Determine credential file path (default to local credentials)
+	credFile := s.config.CredentialFile
+	if credFile == "" {
+		credFile = LocalCredentialsPath()
 	}
+
+	// Initialize OAuth2 server
+	s.oauth2Server = NewOAuth2Server(&OAuth2ServerConfig{
+		BaseURL:        s.config.BaseURL,
+		SecretProject:  s.config.SecretProject,
+		SecretName:     s.config.SecretName,
+		CredentialFile: credFile,
+	})
+
+	// Register OAuth2 routes (not protected by auth)
+	s.oauth2Server.SetupRoutes(mux)
+	log.Println("OAuth2 endpoints enabled:")
+	log.Println("  - /.well-known/oauth-protected-resource")
+	log.Println("  - /.well-known/oauth-authorization-server")
+	log.Println("  - /oauth/register")
+	log.Println("  - /oauth/authorize")
+	log.Println("  - /oauth/callback")
+	log.Println("  - /oauth/token")
 
 	// Health check endpoint (not protected by auth)
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
@@ -874,17 +739,13 @@ func (s *Server) Run(ctx context.Context) error {
 		w.Write([]byte("OK"))
 	})
 
-	// MCP endpoint (protected by API key auth)
+	// Wrap MCP handler with authentication middleware
+	authedMCPHandler := s.authMiddleware(mcpHandler)
+
+	// MCP endpoint (protected by OAuth2 Bearer token auth)
 	mux.Handle("/", authedMCPHandler)
 
-	// Log authentication mode
-	if s.config.APIKey != "" {
-		log.Println("Authentication mode: static API key")
-	} else if s.config.FirestoreProject != "" {
-		log.Println("Authentication mode: Firestore API keys")
-	} else {
-		log.Println("Authentication mode: disabled (no API key or Firestore project configured)")
-	}
+	log.Println("Authentication mode: OAuth2 Bearer tokens")
 
 	// Create HTTP server
 	addr := fmt.Sprintf("%s:%d", s.config.Host, s.config.Port)
@@ -901,6 +762,7 @@ func (s *Server) Run(ctx context.Context) error {
 	errChan := make(chan error, 1)
 	go func() {
 		log.Printf("Starting MCP server on %s", addr)
+		log.Printf("Base URL: %s", s.config.BaseURL)
 		if err := s.httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			errChan <- err
 		}
@@ -926,4 +788,9 @@ func (s *Server) Run(ctx context.Context) error {
 
 	log.Println("MCP server stopped")
 	return nil
+}
+
+// LocalCredentialsPath returns the default local credentials path.
+func LocalCredentialsPath() string {
+	return auth.GetCredentialsPath() + "/" + auth.CredentialsFile
 }

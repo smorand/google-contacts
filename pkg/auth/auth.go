@@ -27,6 +27,7 @@ type contextKey string
 const (
 	refreshTokenKey contextKey = "refresh_token"
 	oauthConfigKey  contextKey = "oauth_config"
+	accessTokenKey  contextKey = "access_token"
 )
 
 // WithRefreshToken returns a new context with the refresh token stored.
@@ -51,6 +52,18 @@ func WithOAuthConfig(ctx context.Context, config *oauth2.Config) context.Context
 func GetOAuthConfigFromContext(ctx context.Context) (*oauth2.Config, bool) {
 	config, ok := ctx.Value(oauthConfigKey).(*oauth2.Config)
 	return config, ok
+}
+
+// WithAccessToken returns a new context with the OAuth2 token stored.
+// This is used by the MCP server to pass the validated access token.
+func WithAccessToken(ctx context.Context, token *oauth2.Token) context.Context {
+	return context.WithValue(ctx, accessTokenKey, token)
+}
+
+// GetAccessTokenFromContext retrieves the OAuth2 token from context, if present.
+func GetAccessTokenFromContext(ctx context.Context) (*oauth2.Token, bool) {
+	token, ok := ctx.Value(accessTokenKey).(*oauth2.Token)
+	return token, ok
 }
 
 const (
@@ -84,8 +97,8 @@ func GetCredentialsPath() string {
 
 // GetClient returns an HTTP client with OAuth2 authentication.
 // Authentication sources are checked in order:
-// 1. OAuth config from context + refresh token from context (MCP server mode)
-// 2. Local credentials file + refresh token from context
+// 1. OAuth config from context + access token from context (MCP server mode with access token)
+// 2. OAuth config from context + refresh token from context (MCP server mode)
 // 3. Local credentials file + local token file (CLI mode)
 func GetClient(ctx context.Context) (*http.Client, error) {
 	var config *oauth2.Config
@@ -94,26 +107,31 @@ func GetClient(ctx context.Context) (*http.Client, error) {
 	// Check if OAuth config is provided via context (for MCP server use)
 	if ctxConfig, ok := GetOAuthConfigFromContext(ctx); ok && ctxConfig != nil {
 		config = ctxConfig
-	} else {
-		// Fall back to loading from credentials file (CLI mode)
-		credPath := filepath.Join(GetCredentialsPath(), CredentialsFile)
-		b, err := os.ReadFile(credPath)
-		if err != nil {
-			return nil, fmt.Errorf("unable to read credentials file %s: %w", credPath, err)
+
+		// Check if an access token is provided via context (MCP server mode)
+		if token, ok := GetAccessTokenFromContext(ctx); ok && token != nil {
+			return config.Client(ctx, token), nil
 		}
 
-		config, err = google.ConfigFromJSON(b, Scopes...)
-		if err != nil {
-			return nil, fmt.Errorf("unable to parse credentials: %w", err)
+		// Check if a refresh token is provided via context (MCP server mode)
+		if refreshToken, ok := GetRefreshTokenFromContext(ctx); ok && refreshToken != "" {
+			token := &oauth2.Token{
+				RefreshToken: refreshToken,
+			}
+			return config.Client(ctx, token), nil
 		}
 	}
 
-	// Check if a refresh token is provided via context (for MCP server use)
-	if refreshToken, ok := GetRefreshTokenFromContext(ctx); ok && refreshToken != "" {
-		token := &oauth2.Token{
-			RefreshToken: refreshToken,
-		}
-		return config.Client(ctx, token), nil
+	// Fall back to loading from credentials file (CLI mode)
+	credPath := filepath.Join(GetCredentialsPath(), CredentialsFile)
+	b, err := os.ReadFile(credPath)
+	if err != nil {
+		return nil, fmt.Errorf("unable to read credentials file %s: %w", credPath, err)
+	}
+
+	config, err = google.ConfigFromJSON(b, Scopes...)
+	if err != nil {
+		return nil, fmt.Errorf("unable to parse credentials: %w", err)
 	}
 
 	// Fall back to token from file (CLI mode only)

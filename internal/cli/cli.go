@@ -68,13 +68,12 @@ var (
 
 // MCP server command flags
 var (
-	mcpPort             int
-	mcpHost             string
-	mcpAPIKey           string
-	mcpFirestoreProject string
-	mcpBaseURL          string
-	mcpSecretName       string
-	mcpCredentialFile   string
+	mcpPort           int
+	mcpHost           string
+	mcpBaseURL        string
+	mcpSecretName     string
+	mcpSecretProject  string
+	mcpCredentialFile string
 )
 
 // Command definitions
@@ -349,28 +348,34 @@ using the standard MCP protocol over HTTP.
 
 Available tools:
   - ping: Test connectivity with the server
-
-Future tools (to be implemented):
-  - create_contact: Create a new contact
-  - search_contacts: Search contacts by query
-  - get_contact: Get contact details by ID
-  - update_contact: Update an existing contact
-  - delete_contact: Delete a contact
+  - contacts_create: Create a new contact
+  - contacts_search: Search contacts by query
+  - contacts_show: Get contact details by ID
+  - contacts_update: Update an existing contact
+  - contacts_delete: Delete a contact
 
 Authentication:
-  - Static API key: Use --api-key flag
-  - Firestore-based: Use --firestore-project flag (future)
+  The server implements OAuth 2.1 with Dynamic Client Registration
+  for MCP-compatible clients like Claude. Claude handles the OAuth
+  flow automatically when you configure it with the server URL.
+
+  OAuth endpoints:
+  - /.well-known/oauth-protected-resource - Protected resource metadata
+  - /.well-known/oauth-authorization-server - Authorization server metadata
+  - /oauth/register - Dynamic client registration
+  - /oauth/authorize - Authorization endpoint (redirects to Google)
+  - /oauth/token - Token endpoint
 
 The server listens on the specified host and port, serving the MCP
-protocol via streamable HTTP transport.`,
+protocol via streamable HTTP transport with OAuth2 authentication.`,
 		Example: `  # Start MCP server on default port (8080)
   google-contacts mcp
 
   # Start on custom port
   google-contacts mcp --port 3000
 
-  # Start with API key authentication
-  google-contacts mcp --api-key "your-secret-key"
+  # Production deployment with Secret Manager
+  google-contacts mcp --secret-project "my-gcp-project" --secret-name "oauth-credentials"
 
   # Start on all interfaces (for remote access)
   google-contacts mcp --host 0.0.0.0 --port 8080`,
@@ -828,10 +833,13 @@ func runMCP(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Get Firestore project from env if not set via flag
-	firestoreProject := mcpFirestoreProject
-	if firestoreProject == "" {
-		firestoreProject = os.Getenv("FIRESTORE_PROJECT")
+	// Get Secret Manager project from env if not set via flag
+	secretProject := mcpSecretProject
+	if secretProject == "" {
+		secretProject = os.Getenv("SECRET_PROJECT")
+		if secretProject == "" {
+			secretProject = os.Getenv("PROJECT_ID") // Fallback to PROJECT_ID
+		}
 	}
 
 	// Get Secret Manager secret name from env if not set via flag
@@ -848,13 +856,12 @@ func runMCP(cmd *cobra.Command, args []string) error {
 
 	// Create MCP server configuration
 	cfg := &mcpserver.Config{
-		Host:             host,
-		Port:             port,
-		APIKey:           mcpAPIKey,
-		FirestoreProject: firestoreProject,
-		BaseURL:          baseURL,
-		SecretName:       secretName,
-		CredentialFile:   mcpCredentialFile,
+		Host:           host,
+		Port:           port,
+		BaseURL:        baseURL,
+		SecretName:     secretName,
+		SecretProject:  secretProject,
+		CredentialFile: mcpCredentialFile,
 	}
 
 	// Create and run the MCP server
@@ -1233,10 +1240,9 @@ func Init() {
 	// Setup mcp command flags
 	mcpCmd.Flags().IntVarP(&mcpPort, "port", "p", 8080, "Port to listen on")
 	mcpCmd.Flags().StringVarP(&mcpHost, "host", "H", "localhost", "Host to bind to")
-	mcpCmd.Flags().StringVar(&mcpAPIKey, "api-key", "", "Static API key for authentication")
-	mcpCmd.Flags().StringVar(&mcpFirestoreProject, "firestore-project", "", "GCP project for Firestore API key validation")
 	mcpCmd.Flags().StringVar(&mcpBaseURL, "base-url", "", "Base URL for OAuth callbacks (e.g., https://example.com)")
 	mcpCmd.Flags().StringVar(&mcpSecretName, "secret-name", "", "Secret Manager secret name for OAuth credentials")
+	mcpCmd.Flags().StringVar(&mcpSecretProject, "secret-project", "", "GCP project for Secret Manager")
 	mcpCmd.Flags().StringVar(&mcpCredentialFile, "credential-file", "", "Local OAuth credential file path (fallback)")
 
 	// Register commands
