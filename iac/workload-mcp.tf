@@ -106,11 +106,6 @@ resource "google_cloud_run_v2_service" "mcp" {
       }
 
       env {
-        name  = "FIRESTORE_PROJECT"
-        value = local.project_id
-      }
-
-      env {
         name  = "SECRET_NAME"
         value = local.oauth_secret_name
       }
@@ -128,6 +123,11 @@ resource "google_cloud_run_v2_service" "mcp" {
       env {
         name  = "PROJECT_ID"
         value = local.project_id
+      }
+
+      env {
+        name  = "DEPLOY_TIMESTAMP"
+        value = "2026-01-15T15:45:00Z"
       }
     }
   }
@@ -147,12 +147,8 @@ resource "google_cloud_run_v2_service" "mcp" {
 # SERVICE ACCOUNT PERMISSIONS
 # ============================================
 
-# Grant Firestore access to Cloud Run service account
-resource "google_project_iam_member" "mcp_firestore" {
-  project = local.project_id
-  role    = "roles/datastore.user"
-  member  = "serviceAccount:${local.mcp_service_account}"
-}
+# Note: Firestore permission removed - OAuth2 flow no longer needs Firestore.
+# Clients register dynamically and tokens are managed in-memory.
 
 # Grant Secret Manager access to Cloud Run service account
 resource "google_project_iam_member" "mcp_secretmanager" {

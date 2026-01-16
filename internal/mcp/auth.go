@@ -12,7 +12,6 @@ import (
 	"html/template"
 	"log"
 	"net/http"
-	"net/url"
 	"os"
 	"sync"
 	"time"
@@ -25,8 +24,6 @@ import (
 	gmail "google.golang.org/api/gmail/v1"
 	"google.golang.org/api/option"
 	people "google.golang.org/api/people/v1"
-
-	"google-contacts/pkg/auth"
 )
 
 //go:embed templates/success.html
@@ -393,37 +390,30 @@ func (h *AuthHandler) getUserEmail(ctx context.Context, config *oauth2.Config, t
 	return "", fmt.Errorf("no email address found")
 }
 
-// serveCallbackResponse generates an API key, stores it with the token, and redirects to success page.
+// serveCallbackResponse displays a success page with the OAuth tokens.
+// Note: With the new MCP OAuth2 flow (oauth2.go), the /auth endpoint flow
+// is no longer the primary authentication method. This is kept for backwards
+// compatibility but the main flow now goes through /oauth/authorize.
 func (h *AuthHandler) serveCallbackResponse(w http.ResponseWriter, r *http.Request, token *oauth2.Token, userEmail string) {
-	ctx := context.Background()
+	// In the new OAuth2 flow, we don't generate API keys here.
+	// The MCP client handles the OAuth flow directly via /oauth/authorize.
+	// This endpoint is kept for manual token generation if needed.
 
-	// Check if Firestore client is available
-	if h.server.firestoreClient == nil {
-		log.Printf("Firestore client not available - cannot generate API key")
-		http.Error(w, "Server configuration error: Firestore not configured", http.StatusInternalServerError)
-		return
+	log.Printf("OAuth callback completed for user: %s (refresh_token_present=%v)",
+		userEmail, token.RefreshToken != "")
+
+	// Display success message with refresh token info
+	successData := SuccessPageData{
+		APIKey:    token.RefreshToken, // Show refresh token for manual configuration
+		UserEmail: userEmail,
+		ServerURL: h.baseURL,
 	}
 
-	// Generate UUID v4 API key
-	apiKey := GenerateAPIKey()
-
-	// Store the API key with tokens in Firestore
-	err := h.server.StoreAPIKey(ctx, apiKey, token, userEmail)
-	if err != nil {
-		log.Printf("Failed to store API key: %v", err)
-		http.Error(w, fmt.Sprintf("Failed to store API key: %v", err), http.StatusInternalServerError)
-		return
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err := successPageTemplate.Execute(w, successData); err != nil {
+		log.Printf("Failed to render success template: %v", err)
+		http.Error(w, "Failed to render page", http.StatusInternalServerError)
 	}
-
-	log.Printf("API key generated and stored for user: %s", userEmail)
-
-	// Redirect to success page with API key in query parameters
-	successURL := "/auth/success?key=" + url.QueryEscape(apiKey)
-	if userEmail != "" {
-		successURL += "&email=" + url.QueryEscape(userEmail)
-	}
-
-	http.Redirect(w, r, successURL, http.StatusFound)
 }
 
 // SuccessPageData holds the data for rendering the success page template.
@@ -503,9 +493,4 @@ func (h *AuthHandler) GetRedirectURI() string {
 	h.oauthConfigMu.RLock()
 	defer h.oauthConfigMu.RUnlock()
 	return h.redirectURI
-}
-
-// LocalCredentialsPath returns the default local credentials path.
-func LocalCredentialsPath() string {
-	return auth.GetCredentialsPath() + "/" + auth.CredentialsFile
 }
