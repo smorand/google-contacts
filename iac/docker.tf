@@ -40,10 +40,16 @@ resource "docker_image" "mcp" {
 
   # Triggers rebuild when source files change
   triggers = {
-    dockerfile_hash = filesha256("${path.root}/../Dockerfile")
-    go_mod_hash     = filesha256("${path.root}/../go.mod")
-    go_sum_hash     = filesha256("${path.root}/../go.sum")
-    main_hash       = filesha256("${path.root}/../cmd/google-contacts/main.go")
+    dockerfile_hash    = filesha256("${path.root}/../Dockerfile")
+    go_mod_hash        = filesha256("${path.root}/../go.mod")
+    go_sum_hash        = filesha256("${path.root}/../go.sum")
+    main_hash          = filesha256("${path.root}/../cmd/google-contacts/main.go")
+    cli_hash           = filesha256("${path.root}/../internal/cli/cli.go")
+    contacts_hash      = filesha256("${path.root}/../internal/contacts/service.go")
+    mcp_server_hash    = filesha256("${path.root}/../internal/mcp/server.go")
+    mcp_auth_hash      = filesha256("${path.root}/../internal/mcp/auth.go")
+    mcp_oauth2_hash    = filesha256("${path.root}/../internal/mcp/oauth2.go")
+    pkg_auth_hash      = filesha256("${path.root}/../pkg/auth/auth.go")
   }
 }
 

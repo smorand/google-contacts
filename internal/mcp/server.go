@@ -114,9 +114,24 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 	})
 }
 
+// isInternationalPhoneFormat validates that a phone number starts with '+'.
+func isInternationalPhoneFormat(phone string) bool {
+	return strings.HasPrefix(phone, "+")
+}
+
+// validatePhones checks that all phone numbers are in international format (start with +).
+func validatePhones(phones []PhoneInput) error {
+	for _, phone := range phones {
+		if !isInternationalPhoneFormat(phone.Value) {
+			return fmt.Errorf("phone number '%s' must be in international format (starting with +, e.g. +33612345678)", phone.Value)
+		}
+	}
+	return nil
+}
+
 // PhoneInput represents a phone number with type for MCP tools.
 type PhoneInput struct {
-	Value string `json:"value" jsonschema:"Phone number (e.g. +33612345678)"`
+	Value string `json:"value" jsonschema:"Phone number in international format starting with + (e.g. +33612345678)"`
 	Type  string `json:"type,omitempty" jsonschema:"Phone type: mobile work home main other. Default: mobile"`
 }
 
@@ -135,7 +150,7 @@ type AddressInput struct {
 // CreateInput is the input schema for contacts_create tool.
 type CreateInput struct {
 	FirstName string         `json:"firstName" jsonschema:"First name of the contact"`
-	LastName  string         `json:"lastName" jsonschema:"Last name of the contact"`
+	LastName  string         `json:"lastName" jsonschema:"Last name of the contact (will be stored in UPPERCASE)"`
 	Phones    []PhoneInput   `json:"phones" jsonschema:"Phone numbers with optional types (required)"`
 	Emails    []EmailInput   `json:"emails,omitempty" jsonschema:"Email addresses with optional types"`
 	Addresses []AddressInput `json:"addresses,omitempty" jsonschema:"Postal addresses with optional types"`
@@ -216,7 +231,7 @@ type ShowOutput struct {
 type UpdateInput struct {
 	ContactID       string         `json:"contactId" jsonschema:"Contact ID to update"`
 	FirstName       string         `json:"firstName,omitempty" jsonschema:"New first name"`
-	LastName        string         `json:"lastName,omitempty" jsonschema:"New last name"`
+	LastName        string         `json:"lastName,omitempty" jsonschema:"New last name (will be stored in UPPERCASE)"`
 	Phones          []PhoneInput   `json:"phones,omitempty" jsonschema:"Replace ALL phones with these"`
 	AddPhones       []PhoneInput   `json:"addPhones,omitempty" jsonschema:"Add phones without removing existing"`
 	RemovePhones    []string       `json:"removePhones,omitempty" jsonschema:"Remove phones by value"`
@@ -321,6 +336,14 @@ func (s *Server) handleCreateContact(ctx context.Context, req *mcp.CallToolReque
 	if len(input.Phones) == 0 {
 		return nil, CreateOutput{}, fmt.Errorf("at least one phone is required")
 	}
+
+	// Validate phone numbers are in international format
+	if err := validatePhones(input.Phones); err != nil {
+		return nil, CreateOutput{}, err
+	}
+
+	// Convert last name to uppercase
+	input.LastName = strings.ToUpper(input.LastName)
 
 	// Get the contacts service
 	srv, err := contacts.GetPeopleService(ctx)
@@ -501,6 +524,19 @@ func (s *Server) handleUpdateContact(ctx context.Context, req *mcp.CallToolReque
 	// Validate required fields
 	if input.ContactID == "" {
 		return nil, UpdateOutput{}, fmt.Errorf("contactId is required")
+	}
+
+	// Validate phone numbers are in international format
+	if err := validatePhones(input.Phones); err != nil {
+		return nil, UpdateOutput{}, err
+	}
+	if err := validatePhones(input.AddPhones); err != nil {
+		return nil, UpdateOutput{}, err
+	}
+
+	// Convert last name to uppercase if provided
+	if input.LastName != "" {
+		input.LastName = strings.ToUpper(input.LastName)
 	}
 
 	// Get the contacts service
