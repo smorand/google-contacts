@@ -18,7 +18,11 @@ google-contacts/
 ├── internal/
 │   ├── cli/cli.go                  # CLI commands
 │   ├── contacts/service.go         # People API wrapper
-│   └── mcp/server.go               # MCP server
+│   └── mcp/
+│       ├── server.go               # MCP server & tools
+│       ├── auth.go                 # API key validation (Firestore)
+│       ├── oauth2.go               # OAuth2 authorization server
+│       └── templates/success.html  # OAuth success page
 ├── pkg/auth/auth.go                # OAuth2 (duplicated from email-manager)
 ├── init/                           # Terraform init (state backend)
 ├── iac/                            # Terraform infrastructure
@@ -65,8 +69,8 @@ google-contacts mcp --port 8080
 ## Conventions
 
 - Error wrapping: `fmt.Errorf("context: %w", err)`
-- **Last name**: Stored in UPPERCASE (auto-converted)
-- **Phone numbers**: International format required (`+XX...`), rejected otherwise
+- **Last name**: Stored as provided (case preserved)
+- **Phone numbers**: International format required (`+XX...`); auto-converted if possible (e.g., adds +33 for French numbers)
 - Phone format: `type:number` (e.g., `work:+33123456789`)
 - Email format: `type:email` (e.g., `home:john@gmail.com`)
 - Address format: `type:address` (e.g., `work:50 Avenue Business, Lyon`)
