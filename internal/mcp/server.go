@@ -475,7 +475,7 @@ func (s *Server) handleShowContact(ctx context.Context, req *mcp.CallToolRequest
 		return nil, ShowOutput{}, fmt.Errorf("failed to get contact: %w", err)
 	}
 
-	// Convert to output
+	// Convert to output - always initialize slices to empty to avoid null in JSON
 	output := ShowOutput{
 		ResourceName: details.ResourceName,
 		FirstName:    details.FirstName,
@@ -486,6 +486,9 @@ func (s *Server) handleShowContact(ctx context.Context, req *mcp.CallToolRequest
 		Notes:        details.Notes,
 		Birthday:     details.Birthday,
 		UpdatedAt:    details.UpdatedAt,
+		Phones:       []PhoneOutput{},
+		Emails:       []EmailOutput{},
+		Addresses:    []AddressOutput{},
 	}
 
 	// Convert phones
@@ -651,7 +654,7 @@ func (s *Server) handleUpdateContact(ctx context.Context, req *mcp.CallToolReque
 		return nil, UpdateOutput{}, fmt.Errorf("failed to update contact: %w", err)
 	}
 
-	// Convert to output
+	// Convert to output - always initialize slices to empty to avoid null in JSON
 	output := UpdateOutput{
 		Message: fmt.Sprintf("Contact '%s' updated successfully", details.DisplayName),
 	}
@@ -664,6 +667,9 @@ func (s *Server) handleUpdateContact(ctx context.Context, req *mcp.CallToolReque
 	output.Notes = details.Notes
 	output.Birthday = details.Birthday
 	output.UpdatedAt = details.UpdatedAt
+	output.Phones = []PhoneOutput{}
+	output.Emails = []EmailOutput{}
+	output.Addresses = []AddressOutput{}
 
 	// Convert phones
 	for _, phone := range details.Phones {
