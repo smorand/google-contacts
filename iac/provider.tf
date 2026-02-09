@@ -12,10 +12,10 @@ terraform {
     }
   }
 
-  backend "gcs" {
-  bucket = "project-3335b451-2ffb-4ece-8cd-tfstate"
+backend "gcs" {
+  bucket = "scmgcontacts-iac-ew1-prd"
   prefix = "terraform/state"
-  }
+}
 }
 
 provider "google" {

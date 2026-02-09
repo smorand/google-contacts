@@ -1,6 +1,6 @@
-.PHONY: build build-all install install-launcher uninstall clean clean-all rebuild test fmt vet lint check run info help list-commands init-mod init-deps
+.PHONY: build build-all install install-launcher uninstall clean clean-all rebuild rebuild-all test fmt vet lint check run info help list-commands init-mod init-deps
 .PHONY: docker-build docker-push cloud-run-deploy
-.PHONY: plan deploy undeploy init-plan init-deploy init-destroy terraform-help check-init update-backend
+.PHONY: plan deploy undeploy init-plan init-deploy init-destroy terraform-help check-init update-backend configure-docker-auth
 
 # Detect current platform
 GOOS=$(shell go env GOOS)
@@ -90,11 +90,17 @@ endif
 
 rebuild: clean-all build
 
+rebuild-all: clean-all build-all
+
 # Helper target: Build single command for current platform (multi-command layout)
 build-cmd-current: $(GO_SUM_PATH) $(GO_SOURCES)
 	@echo "Building $(CMD) for $(CURRENT_PLATFORM)..."
 	@mkdir -p $(BUILD_DIR)
 	@GOOS=$(GOOS) GOARCH=$(GOARCH) go build -o $(BUILD_DIR)/$(CMD)-$(CURRENT_PLATFORM) ./cmd/$(CMD)
+ifeq ($(GOOS),darwin)
+	@echo "Signing binary for macOS..."
+	@codesign -f -s - $(BUILD_DIR)/$(CMD)-$(CURRENT_PLATFORM)
+endif
 	@echo "✓ Built: $(BUILD_DIR)/$(CMD)-$(CURRENT_PLATFORM)"
 
 # Helper target: Build single command for all platforms (multi-command layout)
@@ -104,8 +110,14 @@ build-cmd-all: $(GO_SUM_PATH) $(GO_SOURCES)
 	@GOOS=linux GOARCH=amd64 go build -o $(BUILD_DIR)/$(CMD)-linux-amd64 ./cmd/$(CMD)
 	@echo "✓ Built: $(BUILD_DIR)/$(CMD)-linux-amd64"
 	@GOOS=darwin GOARCH=amd64 go build -o $(BUILD_DIR)/$(CMD)-darwin-amd64 ./cmd/$(CMD)
+ifeq ($(GOOS),darwin)
+	@codesign -f -s - $(BUILD_DIR)/$(CMD)-darwin-amd64
+endif
 	@echo "✓ Built: $(BUILD_DIR)/$(CMD)-darwin-amd64"
 	@GOOS=darwin GOARCH=arm64 go build -o $(BUILD_DIR)/$(CMD)-darwin-arm64 ./cmd/$(CMD)
+ifeq ($(GOOS),darwin)
+	@codesign -f -s - $(BUILD_DIR)/$(CMD)-darwin-arm64
+endif
 	@echo "✓ Built: $(BUILD_DIR)/$(CMD)-darwin-arm64"
 	@$(MAKE) create-launcher BINARY_NAME=$(CMD)
 
@@ -461,7 +473,8 @@ help:
 	@echo "  build            - Build binaries for current platform ($(CURRENT_PLATFORM))"
 	@echo "  build-all        - Build for all platforms and create launcher scripts"
 	@echo "  run              - Build and run the binary"
-	@echo "  rebuild          - Clean all and rebuild from scratch"
+	@echo "  rebuild          - Clean all and rebuild for current platform"
+	@echo "  rebuild-all      - Clean all and rebuild for all platforms"
 	@echo "  install          - Install current platform binaries (root: /usr/local/bin, user: ~/.local/bin, or TARGET)"
 	@echo "  install-launcher - Install launcher scripts with all platform binaries"
 	@echo "  uninstall        - Remove installed binaries"
@@ -554,53 +567,56 @@ update-backend:
 		echo "❌ Error: iac/provider.tf.template not found."; \
 		exit 1; \
 	fi
-	@if [ -f "iac/provider.tf" ] && grep -q 'backend "' iac/provider.tf && ! grep -q 'BACKEND_PLACEHOLDER' iac/provider.tf; then \
-		echo "⚠️  Warning: iac/provider.tf already has a backend configured. Skipping."; \
-	else \
-		BACKEND_CONFIG=$$(cd init && terraform output -raw backend_config 2>/dev/null); \
-		if [ -z "$$BACKEND_CONFIG" ]; then \
-			echo "❌ Error: Could not get backend_config from terraform output."; \
-			exit 1; \
-		fi; \
-		awk -v backend="$$BACKEND_CONFIG" ' \
-			/# BACKEND_PLACEHOLDER/ { \
-				n = split(backend, lines, "\n"); \
-				for (i = 1; i <= n; i++) { \
-					gsub(/^[ \t]+|[ \t]+$$/, "", lines[i]); \
-					if (lines[i] != "") print "  " lines[i]; \
-				} \
-				next \
-			} \
-			{ print } \
-		' iac/provider.tf.template > iac/provider.tf; \
-		echo "✅ Successfully updated iac/provider.tf"; \
-		echo ""; \
-		echo "Backend configuration:"; \
-		echo "$$BACKEND_CONFIG"; \
+	@BACKEND_CONFIG=$$(cd init && terraform output -raw backend_config 2>/dev/null); \
+	if [ -z "$$BACKEND_CONFIG" ]; then \
+		echo "❌ Error: Could not get backend_config from terraform output."; \
+		exit 1; \
+	fi; \
+	PLACEHOLDER_LINE=$$(grep -n "BACKEND_PLACEHOLDER" iac/provider.tf.template | cut -d: -f1 | head -1); \
+	if [ -z "$$PLACEHOLDER_LINE" ]; then \
+		echo "❌ Error: # BACKEND_PLACEHOLDER not found in template."; \
+		exit 1; \
+	fi; \
+	head -n $$((PLACEHOLDER_LINE - 1)) iac/provider.tf.template > iac/provider.tf; \
+	echo "$$BACKEND_CONFIG" >> iac/provider.tf; \
+	tail -n +$$((PLACEHOLDER_LINE + 1)) iac/provider.tf.template >> iac/provider.tf; \
+	echo "✅ Successfully updated iac/provider.tf"; \
+	echo ""; \
+	echo "Backend configuration:"; \
+	echo "$$BACKEND_CONFIG"
+
+# Configure Docker authentication for Artifact Registry (GCP)
+configure-docker-auth:
+	@REGISTRY_LOCATION=$$(cd init && terraform output -raw docker_registry_location 2>/dev/null); \
+	if [ -n "$$REGISTRY_LOCATION" ]; then \
+		echo "🔐 Configuring Docker authentication for $$REGISTRY_LOCATION..."; \
+		gcloud auth configure-docker $$REGISTRY_LOCATION --quiet; \
+		echo "✅ Docker authentication configured"; \
 	fi
 
 # IAC targets (main infrastructure)
 plan: check-init
 	@echo "🔍 Planning main infrastructure..."
-	cd iac && terraform init && terraform plan
+	cd iac && terraform init -reconfigure && terraform plan
 
 deploy: check-init
 	@echo "🚀 Deploying main infrastructure..."
-	cd iac && terraform init && terraform apply -auto-approve
+	cd iac && terraform init -reconfigure && terraform apply -auto-approve
 
 undeploy: check-init
 	@echo "💣 Destroying main infrastructure..."
-	cd iac && terraform destroy -auto-approve
+	cd iac && terraform init -reconfigure && terraform destroy -auto-approve
 
 # Init targets (backend, state, service accounts)
 init-plan:
 	@echo "🔍 Planning initialization..."
-	cd init && terraform init && terraform plan
+	cd init && terraform init -reconfigure && terraform plan
 
 init-deploy:
 	@echo "🚀 Deploying initialization..."
-	cd init && terraform init && terraform apply -auto-approve
+	cd init && terraform init -reconfigure && terraform apply -auto-approve
 	@$(MAKE) update-backend
+	@$(MAKE) configure-docker-auth
 	@echo ""
 	@echo "✅ Initialization complete!"
 	@echo ""
@@ -612,7 +628,7 @@ init-destroy:
 	@echo "💣 Destroying initialization resources..."
 	@echo "⚠️  WARNING: This will destroy state backend and service accounts!"
 	@read -p "Are you sure? (yes/no): " answer && [ "$$answer" = "yes" ]
-	cd init && terraform destroy -auto-approve
+	cd init && terraform init -reconfigure && terraform destroy -auto-approve
 
 # Help
 terraform-help:
@@ -620,7 +636,7 @@ terraform-help:
 	@echo ""
 	@echo "🚀 Deployment Workflow (First Time):"
 	@echo "  1. make init-plan       - Plan initialization (state backend, service accounts)"
-	@echo "  2. make init-deploy     - Deploy initialization"
+	@echo "  2. make init-deploy     - Deploy initialization (auto-updates backend + docker auth)"
 	@echo "  3. make plan            - Plan main infrastructure"
 	@echo "  4. make deploy          - Deploy main infrastructure"
 	@echo ""
@@ -633,6 +649,10 @@ terraform-help:
 	@echo "  make init-plan          - Plan initialization resources"
 	@echo "  make init-deploy        - Deploy initialization resources"
 	@echo "  make init-destroy       - Destroy initialization (⚠️  DANGEROUS!)"
+	@echo ""
+	@echo "🔄 Utilities:"
+	@echo "  make update-backend       - Manually regenerate iac/provider.tf"
+	@echo "  make configure-docker-auth - Manually configure Docker registry auth"
 	@echo ""
 	@echo "ℹ️  Help:"
 	@echo "  make terraform-help     - Show this help message"
