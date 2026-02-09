@@ -24,8 +24,8 @@ locals {
     "${substr(local.location, 0, 1)}${substr(split("-", local.location)[1], 0, 1)}${regex("\\d+", local.location)}"
   )
 
-  # State backend naming (uses project_id and location_id)
-  state_bucket_name = "${local.project_id}-tfstate"
+  # State backend naming (uses prefix-iac-location_id-env)
+  state_bucket_name = "${local.prefix}-iac-${local.location_id}-${local.env}"
 
   # Services to enable
   services = lookup(local.gcp, "services", [
