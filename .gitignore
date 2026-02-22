@@ -1,3 +1,6 @@
+# Worktrees
+.worktrees/
+
 # Binaries
 /google-contacts
 bin/
