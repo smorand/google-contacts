@@ -34,4 +34,16 @@ locals {
     "cloudresourcemanager.googleapis.com",
     "iam.googleapis.com"
   ])
+
+  # Custom domain configuration
+  cloud_run_config = lookup(lookup(local.gcp, "resources", {}), "cloud_run", {})
+  custom_domain    = lookup(local.cloud_run_config, "custom_domain", "")
+  has_custom_domain = local.custom_domain != ""
+
+  # Base domain extraction (e.g., "contacts.mcp.scm-platform.org" -> "scm-platform.org")
+  domain_parts = local.has_custom_domain ? split(".", local.custom_domain) : []
+  base_domain  = local.has_custom_domain ? join(".", slice(local.domain_parts, length(local.domain_parts) - 2, length(local.domain_parts))) : ""
+
+  # DNS zone name (e.g., "scm-platform.org" -> "scm-platform-org")
+  dns_zone_name = local.has_custom_domain ? replace(local.base_domain, ".", "-") : ""
 }
