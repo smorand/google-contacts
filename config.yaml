@@ -34,6 +34,7 @@ gcp:
     - artifactregistry.googleapis.com
     - cloudresourcemanager.googleapis.com
     - iam.googleapis.com
+    - dns.googleapis.com
   # GCP-specific resource configuration
   resources:
     # Cloud Run configuration
@@ -45,6 +46,7 @@ gcp:
       min_instances: 0
       max_instances: 3
       allow_unauthenticated: true
+      custom_domain: contacts.mcp.scm-platform.org
     # Firestore configuration
     firestore:
       database_id: "(default)"

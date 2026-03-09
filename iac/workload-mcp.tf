@@ -112,7 +112,7 @@ resource "google_cloud_run_v2_service" "mcp" {
 
       env {
         name  = "BASE_URL"
-        value = "https://${local.mcp_name}-${data.google_project.current.number}.${local.cloud_run_region}.run.app"
+        value = local.has_custom_domain ? "https://${local.custom_domain}" : "https://${local.mcp_name}-${data.google_project.current.number}.${local.cloud_run_region}.run.app"
       }
 
       env {
