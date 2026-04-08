@@ -132,18 +132,35 @@ secrets:
   oauth_credentials: scm-pwd-oauth-creds
 ```
 
+## Deprecated Resources
+
+The following Terraform files have been renamed with `.deprecated` suffix.
+They are kept for reference only; Terraform no longer manages these resources.
+VPS deployment via Docker Compose has replaced Cloud Run.
+
+| File | Original Purpose |
+|------|------------------|
+| `iac/workload-mcp.tf.deprecated` | Cloud Run service, Artifact Registry, IAM |
+| `iac/docker.tf.deprecated` | Docker provider, local build, push to registry |
+| `iac/secrets.tf.deprecated` | Secret Manager secret for OAuth credentials |
+| `iac/dns-domain.tf.deprecated` | Cloud Run domain mapping, CNAME record |
+| `iac/database-firestore.tf.deprecated` | Firestore database (previously deprecated) |
+
+**Active Terraform files:**
+- `iac/local.tf` and `iac/provider.tf`: Still used if DNS zone management stays in Terraform
+- `init/`: DNS zone, state backend, service accounts remain useful
+
 ## File Organization Rules
 
 - **init/**: One-time setup (state backend, service accounts, API enablement)
-- **iac/**: Application infrastructure
+- **iac/**: Application infrastructure (Cloud Run deprecated, VPS is primary)
 - Resource files named by feature: `workload-mcp.tf`, `database-firestore.tf`
 - Structure per file: locals → resources → permissions → outputs
 - NO separate `output.tf` - outputs inline
 
 ## Notes for AI
 
-- Always run `make plan` before `make deploy`
+- Primary deployment is now VPS via `make deploy-vps`
+- Cloud Run deployment (`make deploy`) is deprecated
 - Never commit `.terraform/` or `*.tfstate`
 - Use `config.yaml` as single source of truth
-- Firestore collections created automatically on first write
-- API keys use document ID for O(1) lookup
