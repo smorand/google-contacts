@@ -1,6 +1,7 @@
 .PHONY: build build-all install install-launcher uninstall clean clean-all rebuild rebuild-all test fmt vet lint check run info help list-commands init-mod init-deps
 .PHONY: docker-build docker-push cloud-run-deploy
 .PHONY: plan deploy undeploy init-plan init-deploy init-destroy terraform-help check-init update-backend configure-docker-auth
+.PHONY: deploy-vps
 
 # Detect current platform
 GOOS=$(shell go env GOOS)
@@ -491,9 +492,12 @@ help:
 	@echo "  info             - Show current platform and project information"
 	@echo "  help             - Show this help message"
 	@echo ""
+	@echo "Deployment targets:"
+	@echo "  deploy-vps       - Deploy to VPS via SSH"
+	@echo ""
 	@echo "Terraform targets:"
 	@echo "  plan             - Plan main infrastructure changes"
-	@echo "  deploy           - Deploy main infrastructure (Docker + Cloud Run)"
+	@echo "  deploy           - Deploy main infrastructure (Docker + Cloud Run) [DEPRECATED]"
 	@echo "  undeploy         - Destroy main infrastructure"
 	@echo "  init-plan        - Plan initialization resources"
 	@echo "  init-deploy      - Deploy initialization resources"
@@ -658,3 +662,19 @@ terraform-help:
 	@echo "  make terraform-help     - Show this help message"
 	@echo ""
 	@echo "⚠️  Note: You must run 'make init-deploy' BEFORE running 'make deploy'"
+
+
+# ============================================
+# VPS Deployment
+# ============================================
+
+VPS_HOST=31.97.54.67
+VPS_APP_NAME=google-contacts
+VPS_GIT_REPO=git@github.com:smorand/google-contacts.git
+
+deploy-vps:
+	@echo "Deploying $(VPS_APP_NAME) to VPS $(VPS_HOST)..."
+	ssh root@$(VPS_HOST) "cd /app/src && bash /app/vps-deploy.sh $(VPS_APP_NAME) $(VPS_GIT_REPO)"
+	@echo ""
+	@echo "Deployment complete!"
+	@echo "URL: https://$(VPS_APP_NAME).scm-platform.org"
