@@ -68,12 +68,15 @@ var (
 
 // MCP server command flags
 var (
-	mcpPort           int
-	mcpHost           string
-	mcpBaseURL        string
-	mcpSecretName     string
-	mcpSecretProject  string
-	mcpCredentialFile string
+	mcpPort            int
+	mcpHost            string
+	mcpBaseURL         string
+	mcpSecretName      string
+	mcpSecretProject   string
+	mcpCredentialFile  string
+	mcpVaultAddr       string
+	mcpVaultToken      string
+	mcpVaultSecretPath string
 )
 
 // Command definitions
@@ -854,14 +857,33 @@ func runMCP(cmd *cobra.Command, args []string) error {
 		baseURL = os.Getenv("BASE_URL")
 	}
 
+	// Get Vault configuration from env if not set via flags
+	vaultAddr := mcpVaultAddr
+	if vaultAddr == "" {
+		vaultAddr = os.Getenv("VAULT_ADDR")
+	}
+
+	vaultToken := mcpVaultToken
+	if vaultToken == "" {
+		vaultToken = os.Getenv("VAULT_TOKEN")
+	}
+
+	vaultSecretPath := mcpVaultSecretPath
+	if vaultSecretPath == "" {
+		vaultSecretPath = os.Getenv("VAULT_SECRET_PATH")
+	}
+
 	// Create MCP server configuration
 	cfg := &mcpserver.Config{
-		Host:           host,
-		Port:           port,
-		BaseURL:        baseURL,
-		SecretName:     secretName,
-		SecretProject:  secretProject,
-		CredentialFile: mcpCredentialFile,
+		Host:            host,
+		Port:            port,
+		BaseURL:         baseURL,
+		CredentialFile:  mcpCredentialFile,
+		SecretName:      secretName,
+		SecretProject:   secretProject,
+		VaultAddr:       vaultAddr,
+		VaultSecretPath: vaultSecretPath,
+		VaultToken:      vaultToken,
 	}
 
 	// Create and run the MCP server
@@ -1244,6 +1266,9 @@ func Init() {
 	mcpCmd.Flags().StringVar(&mcpSecretName, "secret-name", "", "Secret Manager secret name for OAuth credentials")
 	mcpCmd.Flags().StringVar(&mcpSecretProject, "secret-project", "", "GCP project for Secret Manager")
 	mcpCmd.Flags().StringVar(&mcpCredentialFile, "credential-file", "", "Local OAuth credential file path (fallback)")
+	mcpCmd.Flags().StringVar(&mcpVaultAddr, "vault-addr", "", "HashiCorp Vault address (e.g., http://vault:8200)")
+	mcpCmd.Flags().StringVar(&mcpVaultToken, "vault-token", "", "Vault authentication token")
+	mcpCmd.Flags().StringVar(&mcpVaultSecretPath, "vault-secret-path", "", "Vault KV v2 secret path (default: secret/credentials/google-credentials)")
 
 	// Register commands
 	RootCmd.AddCommand(versionCmd)

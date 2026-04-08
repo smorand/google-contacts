@@ -154,29 +154,38 @@ type OAuth2Server struct {
 	codes   map[string]*authorizationCode
 
 	// Configuration
-	secretProject  string
-	secretName     string
-	credentialFile string
+	credentialFile  string
+	secretName      string
+	secretProject   string
+	vaultAddr       string
+	vaultSecretPath string
+	vaultToken      string
 }
 
 // OAuth2ServerConfig holds configuration for the OAuth2 server.
 type OAuth2ServerConfig struct {
-	BaseURL        string // Base URL (e.g., https://mcp.example.com)
-	SecretProject  string // GCP project for Secret Manager
-	SecretName     string // Secret name for OAuth credentials
-	CredentialFile string // Local credential file (fallback)
+	BaseURL         string // Base URL (e.g., https://mcp.example.com)
+	CredentialFile  string // Local credential file (fallback)
+	SecretName      string // Secret name for OAuth credentials
+	SecretProject   string // GCP project for Secret Manager
+	VaultAddr       string // HashiCorp Vault address (e.g., http://vault:8200)
+	VaultSecretPath string // Vault KV v2 secret path (e.g., secret/credentials/google-credentials)
+	VaultToken      string // Vault authentication token
 }
 
 // NewOAuth2Server creates a new OAuth2 authorization server.
 func NewOAuth2Server(cfg *OAuth2ServerConfig) *OAuth2Server {
 	s := &OAuth2Server{
-		baseURL:        cfg.BaseURL,
-		secretProject:  cfg.SecretProject,
-		secretName:     cfg.SecretName,
-		credentialFile: cfg.CredentialFile,
-		clients:        make(map[string]*registeredClient),
-		states:         make(map[string]*authorizationState),
-		codes:          make(map[string]*authorizationCode),
+		baseURL:         cfg.BaseURL,
+		credentialFile:  cfg.CredentialFile,
+		secretName:      cfg.SecretName,
+		secretProject:   cfg.SecretProject,
+		vaultAddr:       cfg.VaultAddr,
+		vaultSecretPath: cfg.VaultSecretPath,
+		vaultToken:      cfg.VaultToken,
+		clients:         make(map[string]*registeredClient),
+		states:          make(map[string]*authorizationState),
+		codes:           make(map[string]*authorizationCode),
 	}
 
 	// Start cleanup goroutines
@@ -220,7 +229,8 @@ func (s *OAuth2Server) cleanupExpiredCodes() {
 	}
 }
 
-// LoadCredentials loads Google OAuth credentials from Secret Manager or file.
+// LoadCredentials loads Google OAuth credentials from Secret Manager, Vault, or file.
+// Priority: 1) Secret Manager, 2) Vault, 3) Local file.
 func (s *OAuth2Server) LoadCredentials(ctx context.Context) error {
 	s.oauthConfigMu.Lock()
 	defer s.oauthConfigMu.Unlock()
@@ -231,14 +241,27 @@ func (s *OAuth2Server) LoadCredentials(ctx context.Context) error {
 
 	var credentialsJSON []byte
 	var err error
+	var sources []string
 
 	// Try Secret Manager first
 	if s.secretProject != "" && s.secretName != "" {
 		credentialsJSON, err = loadFromSecretManager(ctx, s.secretProject, s.secretName)
 		if err != nil {
 			log.Printf("Failed to load credentials from Secret Manager: %v", err)
+			sources = append(sources, fmt.Sprintf("Secret Manager (%s/%s): %v", s.secretProject, s.secretName, err))
 		} else {
 			log.Printf("OAuth credentials loaded from Secret Manager: %s/%s", s.secretProject, s.secretName)
+		}
+	}
+
+	// Try Vault
+	if credentialsJSON == nil {
+		credentialsJSON, err = s.loadFromVault()
+		if err != nil {
+			log.Printf("Failed to load credentials from Vault: %v", err)
+			sources = append(sources, fmt.Sprintf("Vault (%s): %v", s.vaultAddr, err))
+		} else if credentialsJSON != nil {
+			log.Printf("OAuth credentials loaded from Vault: %s", s.vaultAddr)
 		}
 	}
 
@@ -246,13 +269,14 @@ func (s *OAuth2Server) LoadCredentials(ctx context.Context) error {
 	if credentialsJSON == nil && s.credentialFile != "" {
 		credentialsJSON, err = os.ReadFile(s.credentialFile)
 		if err != nil {
-			return fmt.Errorf("failed to read credentials file %s: %w", s.credentialFile, err)
+			sources = append(sources, fmt.Sprintf("file (%s): %v", s.credentialFile, err))
+		} else {
+			log.Printf("OAuth credentials loaded from file: %s", s.credentialFile)
 		}
-		log.Printf("OAuth credentials loaded from file: %s", s.credentialFile)
 	}
 
 	if credentialsJSON == nil {
-		return fmt.Errorf("no OAuth credentials available: configure Secret Manager or credential file")
+		return fmt.Errorf("no OAuth credentials available, tried: %s", strings.Join(sources, "; "))
 	}
 
 	// Parse credentials - redirect to our callback
@@ -799,6 +823,59 @@ func writeOAuthError(w http.ResponseWriter, errorCode, description string, statu
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
 	json.NewEncoder(w).Encode(resp)
+}
+
+// loadFromVault loads credentials from HashiCorp Vault KV v2 secret store.
+// Returns (nil, nil) if Vault is not configured (empty addr or token).
+func (s *OAuth2Server) loadFromVault() ([]byte, error) {
+	if s.vaultAddr == "" || s.vaultToken == "" {
+		return nil, nil
+	}
+
+	secretPath := s.vaultSecretPath
+	if secretPath == "" {
+		secretPath = "secret/credentials/google-credentials"
+	}
+
+	return loadFromVaultHTTP(s.vaultAddr, s.vaultToken, secretPath)
+}
+
+// loadFromVaultHTTP fetches a secret from Vault KV v2 via HTTP API.
+func loadFromVaultHTTP(vaultAddr, vaultToken, secretPath string) ([]byte, error) {
+	url := fmt.Sprintf("%s/v1/secret/data/%s", strings.TrimRight(vaultAddr, "/"), secretPath)
+
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("create vault request: %w", err)
+	}
+	req.Header.Set("X-Vault-Token", vaultToken)
+
+	client := &http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("vault connection failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("vault returned status %d", resp.StatusCode)
+	}
+
+	// KV v2 response: { "data": { "data": { ... credentials ... } } }
+	var vaultResp struct {
+		Data struct {
+			Data json.RawMessage `json:"data"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&vaultResp); err != nil {
+		return nil, fmt.Errorf("parse vault response: %w", err)
+	}
+
+	if len(vaultResp.Data.Data) == 0 {
+		return nil, fmt.Errorf("vault returned empty credentials")
+	}
+
+	return vaultResp.Data.Data, nil
 }
 
 // loadFromSecretManager loads credentials from Google Secret Manager.
