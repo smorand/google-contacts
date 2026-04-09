@@ -1,16 +1,14 @@
 services:
-  google-contacts-mcp:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: google-contacts-mcp
+  google-contacts:
+    build: .
+    container_name: google-contacts
+    restart: unless-stopped
+    expose:
+      - "8080"
     env_file:
       - /app/data/google-contacts/.env
-    ports:
-      - "8080:8080"
     networks:
       - proxy-network
-    restart: unless-stopped
 
 networks:
   proxy-network:

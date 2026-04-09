@@ -1,7 +1,7 @@
 .PHONY: build build-all install install-launcher uninstall clean clean-all rebuild rebuild-all test fmt vet lint check run info help list-commands init-mod init-deps
 .PHONY: docker-build docker-push cloud-run-deploy
 .PHONY: plan deploy undeploy init-plan init-deploy init-destroy terraform-help check-init update-backend configure-docker-auth
-.PHONY: deploy-vps
+.PHONY: deploy-vps undeploy-vps
 
 # Detect current platform
 GOOS=$(shell go env GOOS)
@@ -668,13 +668,30 @@ terraform-help:
 # VPS Deployment
 # ============================================
 
-VPS_HOST=31.97.54.67
-VPS_APP_NAME=google-contacts
-VPS_GIT_REPO=git@github.com:smorand/google-contacts.git
+VPS_HOST ?= root@31.97.54.67
+VPS_MANAGEMENT_DIR ?= /opt/vps-management
+VPS_APP_NAME ?= google-contacts
+VPS_ENDPOINT ?= google-contacts.scm-platform.org:8080
+VPS_GIT_ORG ?= smorand
+VPS_GIT_REPO ?= google-contacts
 
 deploy-vps:
-	@echo "Deploying $(VPS_APP_NAME) to VPS $(VPS_HOST)..."
-	ssh root@$(VPS_HOST) "cd /app/src && bash /app/vps-deploy.sh $(VPS_APP_NAME) $(VPS_GIT_REPO)"
-	@echo ""
-	@echo "Deployment complete!"
-	@echo "URL: https://$(VPS_APP_NAME).scm-platform.org"
+ifndef TAG
+	@echo "Error: TAG is required."
+	@echo "Usage: make deploy-vps TAG=v1.0.0"
+	@exit 1
+endif
+	@echo "Deploying $(VPS_APP_NAME) $(TAG) to VPS..."
+	@echo "1. Pushing tag $(TAG)..."
+	@git tag -f $(TAG) && git push origin $(TAG) --force
+	@echo "2. Running vps-deploy on $(VPS_HOST)..."
+	@ssh $(VPS_HOST) "cd $(VPS_MANAGEMENT_DIR) && \
+		./scripts/vps-undeploy.sh $(VPS_APP_NAME) 2>/dev/null; \
+		./scripts/vps-deploy.sh $(VPS_GIT_ORG)/$(VPS_GIT_REPO)@$(TAG) prod $(VPS_ENDPOINT) ./environments"
+	@echo "Deploy complete! Verify with:"
+	@echo "  curl https://google-contacts.scm-platform.org/health"
+
+undeploy-vps:
+	@echo "Undeploying $(VPS_APP_NAME) from VPS..."
+	@ssh $(VPS_HOST) "cd $(VPS_MANAGEMENT_DIR) && ./scripts/vps-undeploy.sh $(VPS_APP_NAME)"
+	@echo "Undeploy complete. Data preserved in /app/data/$(VPS_APP_NAME)/"
