@@ -163,6 +163,35 @@ mcp.AddTool(s.mcpServer, &mcp.Tool{
 })
 ```
 
+## VPS Deployment
+
+The MCP server is deployed on a VPS using Docker Compose.
+
+**Deploy:**
+```bash
+make deploy-vps    # SSH to VPS, runs vps-deploy.sh
+```
+
+**Configuration:**
+- Docker Compose: `docker-compose.prod.yml`
+- Environment: `/app/data/google-contacts/.env` (on VPS)
+- Template: `environments/prod/.env.example`
+- Container connects to `proxy-network` (nginx reverse proxy)
+- TLS via Let's Encrypt (managed by VPS nginx/certbot stack)
+- Domain: `google-contacts.scm-platform.org`
+
+**CLI Flags (VPS relevant):**
+
+| Flag | Env Var | Description |
+|------|---------|-------------|
+| `--vault-addr` | `VAULT_ADDR` | Vault address (e.g., http://vault:8200) |
+| `--vault-token` | `VAULT_TOKEN` | Vault authentication token |
+| `--vault-secret-path` | `VAULT_SECRET_PATH` | Vault KV v2 secret path |
+| `--base-url` | `BASE_URL` | Public URL for OAuth callbacks |
+| `--secret-name` | `SECRET_NAME` | GCP Secret Manager name (optional) |
+| `--secret-project` | `SECRET_PROJECT` | GCP project (optional) |
+| `--credential-file` | `CREDENTIAL_FILE` | Local file fallback |
+
 ## Testing MCP Server
 
 ```bash

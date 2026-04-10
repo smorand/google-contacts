@@ -55,6 +55,27 @@ srv, err := contacts.GetPeopleService(ctx)
 | Credentials | `~/.credentials/google_credentials.json` |
 | Token | `~/.credentials/google_token.json` |
 
+## Vault Credential Source
+
+On VPS, Google OAuth credentials are loaded from HashiCorp Vault KV v2.
+
+**API:** `GET {VAULT_ADDR}/v1/secret/data/{VAULT_SECRET_PATH}`
+**Auth:** `X-Vault-Token` header
+**Response:** `{ "data": { "data": { ...credentials JSON... } } }` (KV v2 double nesting)
+**Timeout:** 5 seconds
+**Default path:** `secret/credentials/google-credentials`
+
+### Credential Loading Priority Chain
+
+1. **Secret Manager** (if `SECRET_PROJECT` and `SECRET_NAME` are set)
+2. **Vault** (if `VAULT_ADDR` and `VAULT_TOKEN` are set)
+3. **Local file** (if `CREDENTIAL_FILE` is set)
+
+Each source logs success/failure. If a source fails, execution falls through silently.
+If all sources fail, an error listing all attempted sources is returned.
+
+Both `OAuth2Server.LoadCredentials()` (oauth2.go) and `AuthHandler.loadOAuthCredentials()` (auth.go) implement this chain.
+
 ## MCP Server Authentication
 
 See `.agent_docs/mcp-server.md` for:
