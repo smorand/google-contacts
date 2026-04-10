@@ -861,7 +861,7 @@ func loadFromVaultHTTP(vaultAddr, vaultToken, secretPath string) ([]byte, error)
 		return nil, fmt.Errorf("vault returned status %d", resp.StatusCode)
 	}
 
-	// KV v2 response: { "data": { "data": { ... credentials ... } } }
+	// KV v2 response: { "data": { "data": { ... } } }
 	var vaultResp struct {
 		Data struct {
 			Data json.RawMessage `json:"data"`
@@ -875,6 +875,19 @@ func loadFromVaultHTTP(vaultAddr, vaultToken, secretPath string) ([]byte, error)
 		return nil, fmt.Errorf("vault returned empty credentials")
 	}
 
+	// Vault KV stores values as strings. If the secret has a single key
+	// whose value is a JSON string, extract that string as the credentials.
+	var kvData map[string]string
+	if json.Unmarshal(vaultResp.Data.Data, &kvData) == nil && len(kvData) == 1 {
+		for _, v := range kvData {
+			// Check if the value is itself valid JSON (credentials stored as string)
+			if json.Valid([]byte(v)) {
+				return []byte(v), nil
+			}
+		}
+	}
+
+	// Otherwise, treat data.data as the credentials JSON directly
 	return vaultResp.Data.Data, nil
 }
 
