@@ -25,9 +25,11 @@ google-contacts/
 │       └── templates/success.html  # OAuth success page
 ├── pkg/auth/auth.go                # OAuth2 (duplicated from email-manager)
 ├── init/                           # Terraform init (state backend)
-├── iac/                            # Terraform infrastructure
+├── iac/                            # Terraform infrastructure (Cloud Run deprecated)
 ├── config.yaml                     # Terraform configuration
-└── Dockerfile                      # MCP server container
+├── Dockerfile                      # MCP server container
+├── docker-compose.prod.yml         # VPS production deployment
+└── environments/prod/.env.example  # VPS environment variable template
 ```
 
 ## Commands
@@ -44,7 +46,8 @@ make uninstall      # Remove
 
 # Infrastructure
 make plan           # Preview Terraform changes
-make deploy         # Deploy (Docker + Cloud Run)
+make deploy         # Deploy (Docker + Cloud Run) [DEPRECATED]
+make deploy-vps     # Deploy to VPS via SSH
 ```
 
 ## CLI Usage
@@ -56,6 +59,7 @@ google-contacts show c123456789
 google-contacts update c123456789 --add-phone work:+33198765432
 google-contacts delete c123456789
 google-contacts mcp --port 8080
+google-contacts mcp --vault-addr http://vault:8200 --vault-token s.xxx --vault-secret-path secret/credentials/google-credentials
 ```
 
 ## File Locations
@@ -65,6 +69,7 @@ google-contacts mcp --port 8080
 | Credentials | `~/.credentials/google_credentials.json` |
 | Token | `~/.credentials/google_token.json` |
 | Skill | `~/.claude/skills/google-contacts/` |
+| VPS .env | `/app/data/google-contacts/.env` |
 
 ## Conventions
 

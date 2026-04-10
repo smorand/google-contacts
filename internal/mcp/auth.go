@@ -13,6 +13,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -57,40 +58,49 @@ type stateEntry struct {
 
 // AuthHandler manages OAuth2 authentication flows.
 type AuthHandler struct {
-	clientID       string
-	clientSecret   string
-	redirectURI    string
-	baseURL        string // Base URL for constructing redirect URIs
-	server         *Server
-	oauthConfig    *oauth2.Config
-	oauthConfigMu  sync.RWMutex
-	stateMu        sync.RWMutex
-	stateStore     map[string]stateEntry // In-memory state store with TTL
-	stateExpiry    time.Duration         // How long states remain valid
-	secretProject  string                // GCP project for Secret Manager
-	secretName     string                // Secret name for OAuth credentials
-	credentialFile string                // Local credential file path (fallback)
+	clientID        string
+	clientSecret    string
+	redirectURI     string
+	baseURL         string // Base URL for constructing redirect URIs
+	server          *Server
+	oauthConfig     *oauth2.Config
+	oauthConfigMu   sync.RWMutex
+	stateMu         sync.RWMutex
+	stateStore      map[string]stateEntry // In-memory state store with TTL
+	stateExpiry     time.Duration         // How long states remain valid
+	credentialFile  string                // Local credential file path (fallback)
+	secretName      string                // Secret name for OAuth credentials
+	secretProject   string                // GCP project for Secret Manager
+	vaultAddr       string                // HashiCorp Vault address
+	vaultSecretPath string                // Vault KV v2 secret path
+	vaultToken      string                // Vault authentication token
 }
 
 // AuthHandlerConfig holds configuration for creating an AuthHandler.
 type AuthHandlerConfig struct {
-	BaseURL        string // Base URL for redirect URIs (e.g., https://example.com)
-	Server         *Server
-	SecretProject  string // GCP project for Secret Manager
-	SecretName     string // Secret Manager secret name for OAuth credentials
-	CredentialFile string // Fallback: local credential file path
+	BaseURL         string // Base URL for redirect URIs (e.g., https://example.com)
+	Server          *Server
+	CredentialFile  string // Fallback: local credential file path
+	SecretName      string // Secret Manager secret name for OAuth credentials
+	SecretProject   string // GCP project for Secret Manager
+	VaultAddr       string // HashiCorp Vault address
+	VaultSecretPath string // Vault KV v2 secret path
+	VaultToken      string // Vault authentication token
 }
 
 // NewAuthHandler creates a new AuthHandler with the given configuration.
 func NewAuthHandler(cfg *AuthHandlerConfig) *AuthHandler {
 	h := &AuthHandler{
-		baseURL:        cfg.BaseURL,
-		server:         cfg.Server,
-		stateStore:     make(map[string]stateEntry),
-		stateExpiry:    10 * time.Minute, // States expire after 10 minutes
-		secretProject:  cfg.SecretProject,
-		secretName:     cfg.SecretName,
-		credentialFile: cfg.CredentialFile,
+		baseURL:         cfg.BaseURL,
+		server:          cfg.Server,
+		stateStore:      make(map[string]stateEntry),
+		stateExpiry:     10 * time.Minute, // States expire after 10 minutes
+		credentialFile:  cfg.CredentialFile,
+		secretName:      cfg.SecretName,
+		secretProject:   cfg.SecretProject,
+		vaultAddr:       cfg.VaultAddr,
+		vaultSecretPath: cfg.VaultSecretPath,
+		vaultToken:      cfg.VaultToken,
 	}
 
 	// Start background goroutine to clean up expired states
@@ -116,8 +126,8 @@ func (h *AuthHandler) cleanupExpiredStates() {
 	}
 }
 
-// loadOAuthCredentials loads OAuth client credentials from Secret Manager or file.
-// Priority: 1) Secret Manager (if configured), 2) Local file (fallback)
+// loadOAuthCredentials loads OAuth client credentials from Secret Manager, Vault, or file.
+// Priority: 1) Secret Manager (if configured), 2) Vault (if configured), 3) Local file (fallback)
 func (h *AuthHandler) loadOAuthCredentials(ctx context.Context) error {
 	h.oauthConfigMu.Lock()
 	defer h.oauthConfigMu.Unlock()
@@ -129,29 +139,46 @@ func (h *AuthHandler) loadOAuthCredentials(ctx context.Context) error {
 
 	var credentialsJSON []byte
 	var err error
+	var sources []string
 
 	// Try Secret Manager first
 	if h.secretProject != "" && h.secretName != "" {
 		credentialsJSON, err = h.loadFromSecretManager(ctx)
 		if err != nil {
 			log.Printf("Failed to load credentials from Secret Manager: %v", err)
-			// Fall through to try file
+			sources = append(sources, fmt.Sprintf("Secret Manager (%s/%s): %v", h.secretProject, h.secretName, err))
 		} else {
 			log.Printf("OAuth credentials loaded from Secret Manager: %s/%s", h.secretProject, h.secretName)
 		}
 	}
 
-	// Fall back to local file if Secret Manager didn't work
+	// Try Vault
+	if credentialsJSON == nil && h.vaultAddr != "" && h.vaultToken != "" {
+		secretPath := h.vaultSecretPath
+		if secretPath == "" {
+			secretPath = "secret/credentials/google-credentials"
+		}
+		credentialsJSON, err = loadFromVaultHTTP(h.vaultAddr, h.vaultToken, secretPath)
+		if err != nil {
+			log.Printf("Failed to load credentials from Vault: %v", err)
+			sources = append(sources, fmt.Sprintf("Vault (%s): %v", h.vaultAddr, err))
+		} else if credentialsJSON != nil {
+			log.Printf("OAuth credentials loaded from Vault: %s", h.vaultAddr)
+		}
+	}
+
+	// Fall back to local file
 	if credentialsJSON == nil && h.credentialFile != "" {
 		credentialsJSON, err = os.ReadFile(h.credentialFile)
 		if err != nil {
-			return fmt.Errorf("failed to read credentials file %s: %w", h.credentialFile, err)
+			sources = append(sources, fmt.Sprintf("file (%s): %v", h.credentialFile, err))
+		} else {
+			log.Printf("OAuth credentials loaded from file: %s", h.credentialFile)
 		}
-		log.Printf("OAuth credentials loaded from file: %s", h.credentialFile)
 	}
 
 	if credentialsJSON == nil {
-		return fmt.Errorf("no OAuth credentials available: configure Secret Manager or credential file")
+		return fmt.Errorf("no OAuth credentials available, tried: %s", strings.Join(sources, "; "))
 	}
 
 	// Parse credentials

@@ -21,12 +21,15 @@ import (
 
 // Config holds the MCP server configuration.
 type Config struct {
-	Host           string
-	Port           int
-	BaseURL        string // Base URL for OAuth callbacks (e.g., https://example.com)
-	SecretName     string // Secret Manager secret name for OAuth credentials
-	SecretProject  string // GCP project for Secret Manager
-	CredentialFile string // Local credential file path (fallback)
+	Host            string
+	Port            int
+	BaseURL         string // Base URL for OAuth callbacks (e.g., https://example.com)
+	CredentialFile  string // Local credential file path (fallback)
+	SecretName      string // Secret Manager secret name for OAuth credentials
+	SecretProject   string // GCP project for Secret Manager
+	VaultAddr       string // HashiCorp Vault address (e.g., http://vault:8200)
+	VaultSecretPath string // Vault KV v2 secret path
+	VaultToken      string // Vault authentication token
 }
 
 // Server wraps the MCP server and HTTP server.
@@ -759,10 +762,13 @@ func (s *Server) Run(ctx context.Context) error {
 
 	// Initialize OAuth2 server
 	s.oauth2Server = NewOAuth2Server(&OAuth2ServerConfig{
-		BaseURL:        s.config.BaseURL,
-		SecretProject:  s.config.SecretProject,
-		SecretName:     s.config.SecretName,
-		CredentialFile: credFile,
+		BaseURL:         s.config.BaseURL,
+		CredentialFile:  credFile,
+		SecretName:      s.config.SecretName,
+		SecretProject:   s.config.SecretProject,
+		VaultAddr:       s.config.VaultAddr,
+		VaultSecretPath: s.config.VaultSecretPath,
+		VaultToken:      s.config.VaultToken,
 	})
 
 	// Register OAuth2 routes (not protected by auth)

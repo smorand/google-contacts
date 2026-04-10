@@ -90,13 +90,11 @@ cd iac && terraform output
 | `make test` | Run unit tests |
 | `make install` | Install CLI to /usr/local/bin |
 
-### Docker and Cloud Run Targets
+### Deployment Targets
 
 | Target | Description |
 |--------|-------------|
-| `make docker-build` | Build container image locally |
-| `make docker-push` | Push container to Artifact Registry |
-| `make cloud-run-deploy` | Full deployment (build + push + deploy) |
+| `make deploy-vps` | Deploy to VPS via SSH |
 
 ### Terraform Targets
 
@@ -111,25 +109,29 @@ cd iac && terraform output
 
 ## Docker Deployment
 
-The project includes a Dockerfile for containerized deployment:
+The project includes a Dockerfile and Docker Compose for VPS deployment:
 
 ```bash
-# Build the container image
-make docker-build
+# Deploy to VPS
+make deploy-vps
 
-# Run locally
-docker run -p 8080:8080 google-contacts-mcp:latest
-
-# Deploy to Cloud Run (requires GCP credentials)
-make cloud-run-deploy
+# Or run locally with Docker Compose
+docker compose -f docker-compose.prod.yml up --build
 ```
 
 ### Environment Variables
 
 | Variable | Description |
 |----------|-------------|
+| `HOST` | Server bind address (default: localhost) |
 | `PORT` | Server listening port (default: 8080) |
-| `FIRESTORE_PROJECT` | GCP project for API key validation |
+| `BASE_URL` | Public URL for OAuth callbacks |
+| `VAULT_ADDR` | HashiCorp Vault address (e.g., http://vault:8200) |
+| `VAULT_TOKEN` | Vault authentication token |
+| `VAULT_SECRET_PATH` | Vault KV v2 secret path |
+| `SECRET_NAME` | GCP Secret Manager name (optional) |
+| `SECRET_PROJECT` | GCP project for Secret Manager (optional) |
+| `CREDENTIAL_FILE` | Local OAuth credential file path (optional) |
 
 ## MCP Server
 
@@ -141,7 +143,7 @@ The project includes an MCP (Model Context Protocol) server that enables AI assi
 - **Multi-user support**: Each API key maps to a different Google account
 - **OAuth authentication flow**: Generate API keys via browser-based OAuth
 - **Firestore-based key storage**: Production-ready persistent API key management
-- **Cloud Run deployment**: Scalable, serverless deployment
+- **VPS deployment**: Docker Compose with nginx reverse proxy
 
 ### Quick Start (Local Development)
 
@@ -156,21 +158,16 @@ make build
 ./bin/google-contacts-linux-amd64 mcp --api-key "your-secret-key"
 ```
 
-### Production Deployment
+### Production Deployment (VPS)
 
 ```bash
-# 1. Deploy infrastructure (Terraform)
-make plan     # Preview changes
-make deploy   # Deploy Cloud Run, Firestore, Secret Manager
-
-# 2. Upload OAuth credentials to Secret Manager
-gcloud secrets versions add scm-pwd-oauth-creds \
-  --data-file=$HOME/.credentials/scm-pwd.json \
-  --project=scmgcontacts-mcp-prd
-
-# 3. Build and deploy container
-make cloud-run-deploy
+# Deploy to VPS via SSH
+make deploy-vps
 ```
+
+The VPS deployment uses Docker Compose with nginx reverse proxy and Let's Encrypt TLS.
+Credentials are loaded from HashiCorp Vault on the VPS.
+Domain: `https://google-contacts.scm-platform.org`
 
 ### Starting the Server
 
@@ -199,7 +196,7 @@ To use the MCP server with an AI assistant, add this to your MCP client configur
 {
   "mcpServers": {
     "google-contacts": {
-      "url": "https://your-cloudrun-url.run.app",
+      "url": "https://google-contacts.scm-platform.org",
       "transport": "streamable-http",
       "headers": {
         "Authorization": "Bearer <your-api-key>"
@@ -213,7 +210,7 @@ For Claude Desktop, add this to your `claude_desktop_config.json`.
 
 ### Getting an API Key
 
-1. Visit `https://your-cloudrun-url.run.app/auth` in your browser
+1. Visit `https://google-contacts.scm-platform.org/auth` in your browser
 2. Complete the Google OAuth consent flow
 3. The success page displays your API key with a copy button
 4. Store the API key securely - it provides access to your Google Contacts
@@ -271,32 +268,22 @@ When running with Firestore integration (`--firestore-project`):
      project_id: my-contacts-mcp
    ```
 
-4. **Deploy infrastructure**
-   ```bash
-   make init-deploy  # Create state bucket, service accounts
-   make deploy       # Deploy Cloud Run, Firestore, etc.
-   ```
-
-5. **Create OAuth credentials** in Google Cloud Console
+4. **Create OAuth credentials** in Google Cloud Console
    - Go to APIs & Services > Credentials
    - Create OAuth client ID (Web application)
-   - Add authorized redirect URI: `https://YOUR-CLOUD-RUN-URL/auth/callback`
+   - Add authorized redirect URI: `https://google-contacts.scm-platform.org/oauth/callback`
    - Download JSON credentials
 
-6. **Upload credentials to Secret Manager**
-   ```bash
-   gcloud secrets versions add scm-pwd-oauth-creds \
-     --data-file=path/to/credentials.json
-   ```
+5. **Store credentials in Vault** (VPS) or upload to Secret Manager (GCP)
 
-7. **Deploy the container**
-   ```bash
-   make cloud-run-deploy
-   ```
+6. **Configure VPS environment**
+   - Copy `environments/prod/.env.example` to `/app/data/google-contacts/.env`
+   - Fill in Vault credentials and base URL
 
-8. **Test the deployment**
-   - Visit `https://YOUR-CLOUD-RUN-URL/auth` to get an API key
-   - Configure your MCP client with the API key
+7. **Deploy**
+   ```bash
+   make deploy-vps
+   ```
 
 ## Configuration
 
