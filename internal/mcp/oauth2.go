@@ -834,7 +834,7 @@ func (s *OAuth2Server) loadFromVault() ([]byte, error) {
 
 	secretPath := s.vaultSecretPath
 	if secretPath == "" {
-		secretPath = "secret/credentials/google-credentials"
+		secretPath = "credentials/google-credentials"
 	}
 
 	return loadFromVaultHTTP(s.vaultAddr, s.vaultToken, secretPath)
@@ -884,6 +884,15 @@ func loadFromVaultHTTP(vaultAddr, vaultToken, secretPath string) ([]byte, error)
 			if json.Valid([]byte(v)) {
 				return []byte(v), nil
 			}
+		}
+	}
+
+	// If the secret has a single key whose value is a JSON object,
+	// extract that object as the credentials.
+	var kvObjData map[string]json.RawMessage
+	if json.Unmarshal(vaultResp.Data.Data, &kvObjData) == nil && len(kvObjData) == 1 {
+		for _, v := range kvObjData {
+			return []byte(v), nil
 		}
 	}
 

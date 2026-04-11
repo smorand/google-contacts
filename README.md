@@ -167,7 +167,7 @@ make deploy-vps
 
 The VPS deployment uses Docker Compose with nginx reverse proxy and Let's Encrypt TLS.
 Credentials are loaded from HashiCorp Vault on the VPS.
-Domain: `https://google-contacts.scm-platform.org`
+Domain: `https://contacts.mcp.scm-platform.org`
 
 ### Starting the Server
 
@@ -196,7 +196,7 @@ To use the MCP server with an AI assistant, add this to your MCP client configur
 {
   "mcpServers": {
     "google-contacts": {
-      "url": "https://google-contacts.scm-platform.org",
+      "url": "https://contacts.mcp.scm-platform.org",
       "transport": "streamable-http",
       "headers": {
         "Authorization": "Bearer <your-api-key>"
@@ -210,7 +210,7 @@ For Claude Desktop, add this to your `claude_desktop_config.json`.
 
 ### Getting an API Key
 
-1. Visit `https://google-contacts.scm-platform.org/auth` in your browser
+1. Visit `https://contacts.mcp.scm-platform.org/auth` in your browser
 2. Complete the Google OAuth consent flow
 3. The success page displays your API key with a copy button
 4. Store the API key securely - it provides access to your Google Contacts
@@ -271,7 +271,7 @@ When running with Firestore integration (`--firestore-project`):
 4. **Create OAuth credentials** in Google Cloud Console
    - Go to APIs & Services > Credentials
    - Create OAuth client ID (Web application)
-   - Add authorized redirect URI: `https://google-contacts.scm-platform.org/oauth/callback`
+   - Add authorized redirect URI: `https://contacts.mcp.scm-platform.org/oauth/callback`
    - Download JSON credentials
 
 5. **Store credentials in Vault** (VPS) or upload to Secret Manager (GCP)

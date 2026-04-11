@@ -178,7 +178,7 @@ make deploy-vps    # SSH to VPS, runs vps-deploy.sh
 - Template: `environments/prod/.env.example`
 - Container connects to `proxy-network` (nginx reverse proxy)
 - TLS via Let's Encrypt (managed by VPS nginx/certbot stack)
-- Domain: `google-contacts.scm-platform.org`
+- Domain: `contacts.mcp.scm-platform.org`
 
 **CLI Flags (VPS relevant):**
 

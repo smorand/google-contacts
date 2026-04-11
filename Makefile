@@ -507,9 +507,9 @@ help:
 # ============================================
 
 VPS_HOST ?= root@31.97.54.67
-VPS_MANAGEMENT_DIR ?= /opt/vps-management
+VPS_MANAGEMENT_DIR ?= /app/vps-management
 VPS_APP_NAME ?= google-contacts
-VPS_ENDPOINT ?= google-contacts.scm-platform.org:8080
+VPS_ENDPOINT ?= contacts.mcp.scm-platform.org:8080
 VPS_GIT_ORG ?= smorand
 VPS_GIT_REPO ?= google-contacts
 
@@ -527,7 +527,7 @@ endif
 		./scripts/vps-undeploy.sh $(VPS_APP_NAME) 2>/dev/null; \
 		./scripts/vps-deploy.sh $(VPS_GIT_ORG)/$(VPS_GIT_REPO)@$(TAG) prod $(VPS_ENDPOINT) ./environments"
 	@echo "Deploy complete! Verify with:"
-	@echo "  curl https://google-contacts.scm-platform.org/health"
+	@echo "  curl https://contacts.mcp.scm-platform.org/health"
 
 undeploy-vps:
 	@echo "Undeploying $(VPS_APP_NAME) from VPS..."
