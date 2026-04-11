@@ -280,6 +280,7 @@ func (s *OAuth2Server) LoadCredentials(ctx context.Context) error {
 	}
 
 	// Parse credentials - redirect to our callback
+	log.Printf("Credential JSON preview (first 200 chars): %s", string(credentialsJSON[:min(200, len(credentialsJSON))]))
 	config, err := google.ConfigFromJSON(credentialsJSON, OAuth2Scopes...)
 	if err != nil {
 		return fmt.Errorf("failed to parse OAuth credentials: %w", err)
