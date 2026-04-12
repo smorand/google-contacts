@@ -19,7 +19,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"strings"
@@ -247,10 +247,10 @@ func (s *OAuth2Server) LoadCredentials(ctx context.Context) error {
 	if s.secretProject != "" && s.secretName != "" {
 		credentialsJSON, err = loadFromSecretManager(ctx, s.secretProject, s.secretName)
 		if err != nil {
-			log.Printf("Failed to load credentials from Secret Manager: %v", err)
+			slog.Warn("failed to load credentials from secret manager", "error", err)
 			sources = append(sources, fmt.Sprintf("Secret Manager (%s/%s): %v", s.secretProject, s.secretName, err))
 		} else {
-			log.Printf("OAuth credentials loaded from Secret Manager: %s/%s", s.secretProject, s.secretName)
+			slog.Info("oauth credentials loaded from secret manager", "project", s.secretProject, "secret_name", s.secretName)
 		}
 	}
 
@@ -258,10 +258,10 @@ func (s *OAuth2Server) LoadCredentials(ctx context.Context) error {
 	if credentialsJSON == nil {
 		credentialsJSON, err = s.loadFromVault()
 		if err != nil {
-			log.Printf("Failed to load credentials from Vault: %v", err)
+			slog.Warn("failed to load credentials from vault", "error", err)
 			sources = append(sources, fmt.Sprintf("Vault (%s): %v", s.vaultAddr, err))
 		} else if credentialsJSON != nil {
-			log.Printf("OAuth credentials loaded from Vault: %s", s.vaultAddr)
+			slog.Info("oauth credentials loaded from vault", "vault_addr", s.vaultAddr)
 		}
 	}
 
@@ -271,7 +271,7 @@ func (s *OAuth2Server) LoadCredentials(ctx context.Context) error {
 		if err != nil {
 			sources = append(sources, fmt.Sprintf("file (%s): %v", s.credentialFile, err))
 		} else {
-			log.Printf("OAuth credentials loaded from file: %s", s.credentialFile)
+			slog.Info("oauth credentials loaded from file", "file", s.credentialFile)
 		}
 	}
 
@@ -412,7 +412,7 @@ func (s *OAuth2Server) HandleClientRegistration(w http.ResponseWriter, r *http.R
 	s.clients[clientID] = client
 	s.clientsMu.Unlock()
 
-	log.Printf("Registered new OAuth client: %s (name: %s)", clientID, req.ClientName)
+	slog.Info("registered oauth client", "client_id", clientID, "client_name", req.ClientName)
 
 	// Build response
 	resp := ClientRegistrationResponse{
@@ -481,7 +481,7 @@ func (s *OAuth2Server) HandleAuthorize(w http.ResponseWriter, r *http.Request) {
 		s.clientsMu.Lock()
 		s.clients[clientID] = client
 		s.clientsMu.Unlock()
-		log.Printf("Auto-registered OAuth client: %s with redirect_uri: %s", clientID, redirectURI)
+		slog.Info("auto-registered oauth client", "client_id", clientID, "redirect_uri", redirectURI)
 	}
 
 	// Validate redirect_uri (for auto-registered clients, we add new URIs dynamically)
@@ -497,7 +497,7 @@ func (s *OAuth2Server) HandleAuthorize(w http.ResponseWriter, r *http.Request) {
 		s.clientsMu.Lock()
 		client.RedirectURIs = append(client.RedirectURIs, redirectURI)
 		s.clientsMu.Unlock()
-		log.Printf("Added redirect_uri %s for client %s", redirectURI, clientID)
+		slog.Info("added redirect_uri for client", "redirect_uri", redirectURI, "client_id", clientID)
 	}
 
 	// Generate internal state that maps to the client's request
@@ -525,7 +525,7 @@ func (s *OAuth2Server) HandleAuthorize(w http.ResponseWriter, r *http.Request) {
 	// Load Google OAuth config
 	config, err := s.getOAuthConfig(ctx)
 	if err != nil {
-		log.Printf("Failed to load OAuth config: %v", err)
+		slog.Error("failed to load oauth config", "error", err)
 		http.Error(w, "OAuth configuration error", http.StatusInternalServerError)
 		return
 	}
@@ -533,7 +533,7 @@ func (s *OAuth2Server) HandleAuthorize(w http.ResponseWriter, r *http.Request) {
 	// Redirect to Google OAuth
 	authURL := config.AuthCodeURL(internalState, oauth2.AccessTypeOffline, oauth2.ApprovalForce)
 
-	log.Printf("Authorization request: client=%s, redirecting to Google OAuth", clientID)
+	slog.Info("authorization request, redirecting to google oauth", "client_id", clientID)
 
 	http.Redirect(w, r, authURL, http.StatusFound)
 }
@@ -546,7 +546,7 @@ func (s *OAuth2Server) HandleCallback(w http.ResponseWriter, r *http.Request) {
 	// Check for error
 	if errParam := r.URL.Query().Get("error"); errParam != "" {
 		errDesc := r.URL.Query().Get("error_description")
-		log.Printf("Google OAuth error: %s - %s", errParam, errDesc)
+		slog.Error("google oauth error", "error", errParam, "description", errDesc)
 		http.Error(w, fmt.Sprintf("OAuth error: %s - %s", errParam, errDesc), http.StatusBadRequest)
 		return
 	}
@@ -585,19 +585,19 @@ func (s *OAuth2Server) HandleCallback(w http.ResponseWriter, r *http.Request) {
 	// Exchange code with Google
 	config, err := s.getOAuthConfig(ctx)
 	if err != nil {
-		log.Printf("Failed to load OAuth config: %v", err)
+		slog.Error("failed to load oauth config", "error", err)
 		http.Error(w, "OAuth configuration error", http.StatusInternalServerError)
 		return
 	}
 
 	googleToken, err := config.Exchange(ctx, code)
 	if err != nil {
-		log.Printf("Failed to exchange code with Google: %v", err)
+		slog.Error("failed to exchange code with google", "error", err)
 		writeOAuthError(w, "invalid_grant", "Failed to exchange authorization code", http.StatusBadRequest)
 		return
 	}
 
-	log.Printf("Google OAuth exchange successful, refresh_token_present=%v", googleToken.RefreshToken != "")
+	slog.Info("google oauth exchange successful", "refresh_token_present", googleToken.RefreshToken != "")
 
 	// Generate our own authorization code
 	ourCode := generateSecureToken(32)
@@ -623,7 +623,7 @@ func (s *OAuth2Server) HandleCallback(w http.ResponseWriter, r *http.Request) {
 		redirectURL += "&state=" + clientState
 	}
 
-	log.Printf("Redirecting to client: %s", authState.RedirectURI)
+	slog.Info("redirecting to client", "redirect_uri", authState.RedirectURI)
 
 	http.Redirect(w, r, redirectURL, http.StatusFound)
 }
@@ -716,7 +716,7 @@ func (s *OAuth2Server) handleAuthorizationCodeGrant(ctx context.Context, w http.
 		Scope:        "contacts:read contacts:write",
 	}
 
-	log.Printf("Token issued for client: %s", codeEntry.ClientID)
+	slog.Info("token issued", "client_id", codeEntry.ClientID)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)
@@ -732,7 +732,7 @@ func (s *OAuth2Server) handleRefreshTokenGrant(ctx context.Context, w http.Respo
 	// Load Google OAuth config
 	config, err := s.getOAuthConfig(ctx)
 	if err != nil {
-		log.Printf("Failed to load OAuth config: %v", err)
+		slog.Error("failed to load oauth config", "error", err)
 		writeOAuthError(w, "server_error", "OAuth configuration error", http.StatusInternalServerError)
 		return
 	}
@@ -747,7 +747,7 @@ func (s *OAuth2Server) handleRefreshTokenGrant(ctx context.Context, w http.Respo
 	// Get a new token (this will refresh if needed)
 	newToken, err := tokenSource.Token()
 	if err != nil {
-		log.Printf("Failed to refresh token: %v", err)
+		slog.Error("failed to refresh token", "error", err)
 		writeOAuthError(w, "invalid_grant", "Failed to refresh token", http.StatusBadRequest)
 		return
 	}
@@ -765,7 +765,7 @@ func (s *OAuth2Server) handleRefreshTokenGrant(ctx context.Context, w http.Respo
 		resp.RefreshToken = refreshToken
 	}
 
-	log.Printf("Token refreshed for client: %s", clientID)
+	slog.Info("token refreshed", "client_id", clientID)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)
@@ -795,7 +795,7 @@ func generateSecureToken(length int) string {
 	b := make([]byte, length)
 	if _, err := rand.Read(b); err != nil {
 		// Fallback to less secure but functional
-		log.Printf("Warning: crypto/rand failed, using time-based seed")
+		slog.Warn("crypto/rand failed, using time-based seed")
 		return fmt.Sprintf("%d", time.Now().UnixNano())
 	}
 	return base64.URLEncoding.EncodeToString(b)[:length+length/3]

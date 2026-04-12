@@ -10,7 +10,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"html/template"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"strings"
@@ -145,10 +145,10 @@ func (h *AuthHandler) loadOAuthCredentials(ctx context.Context) error {
 	if h.secretProject != "" && h.secretName != "" {
 		credentialsJSON, err = h.loadFromSecretManager(ctx)
 		if err != nil {
-			log.Printf("Failed to load credentials from Secret Manager: %v", err)
+			slog.Warn("failed to load credentials from secret manager", "error", err)
 			sources = append(sources, fmt.Sprintf("Secret Manager (%s/%s): %v", h.secretProject, h.secretName, err))
 		} else {
-			log.Printf("OAuth credentials loaded from Secret Manager: %s/%s", h.secretProject, h.secretName)
+			slog.Info("oauth credentials loaded from secret manager", "project", h.secretProject, "secret_name", h.secretName)
 		}
 	}
 
@@ -160,10 +160,10 @@ func (h *AuthHandler) loadOAuthCredentials(ctx context.Context) error {
 		}
 		credentialsJSON, err = loadFromVaultHTTP(h.vaultAddr, h.vaultToken, secretPath)
 		if err != nil {
-			log.Printf("Failed to load credentials from Vault: %v", err)
+			slog.Warn("failed to load credentials from vault", "error", err)
 			sources = append(sources, fmt.Sprintf("Vault (%s): %v", h.vaultAddr, err))
 		} else if credentialsJSON != nil {
-			log.Printf("OAuth credentials loaded from Vault: %s", h.vaultAddr)
+			slog.Info("oauth credentials loaded from vault", "vault_addr", h.vaultAddr)
 		}
 	}
 
@@ -173,7 +173,7 @@ func (h *AuthHandler) loadOAuthCredentials(ctx context.Context) error {
 		if err != nil {
 			sources = append(sources, fmt.Sprintf("file (%s): %v", h.credentialFile, err))
 		} else {
-			log.Printf("OAuth credentials loaded from file: %s", h.credentialFile)
+			slog.Info("oauth credentials loaded from file", "file", h.credentialFile)
 		}
 	}
 
@@ -288,7 +288,7 @@ func (h *AuthHandler) HandleAuth(w http.ResponseWriter, r *http.Request) {
 	// Load OAuth config
 	config, err := h.getOAuthConfig(ctx)
 	if err != nil {
-		log.Printf("Failed to load OAuth config: %v", err)
+		slog.Error("failed to load oauth config", "error", err)
 		http.Error(w, "OAuth configuration error", http.StatusInternalServerError)
 		return
 	}
@@ -296,7 +296,7 @@ func (h *AuthHandler) HandleAuth(w http.ResponseWriter, r *http.Request) {
 	// Generate state parameter for CSRF protection
 	state, err := h.generateState()
 	if err != nil {
-		log.Printf("Failed to generate state: %v", err)
+		slog.Error("failed to generate state", "error", err)
 		http.Error(w, "Failed to generate state", http.StatusInternalServerError)
 		return
 	}
@@ -306,7 +306,7 @@ func (h *AuthHandler) HandleAuth(w http.ResponseWriter, r *http.Request) {
 	// ApprovalForce ensures we always get a refresh token, even if user already authorized
 	authURL := config.AuthCodeURL(state, oauth2.AccessTypeOffline, oauth2.ApprovalForce)
 
-	log.Printf("Redirecting to OAuth consent page, state=%s...", state[:10])
+	slog.Info("redirecting to oauth consent page", "state_prefix", state[:10])
 
 	// Redirect to Google OAuth consent page
 	http.Redirect(w, r, authURL, http.StatusFound)
@@ -320,7 +320,7 @@ func (h *AuthHandler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 	// Check for OAuth error response
 	if errParam := r.URL.Query().Get("error"); errParam != "" {
 		errDesc := r.URL.Query().Get("error_description")
-		log.Printf("OAuth error: %s - %s", errParam, errDesc)
+		slog.Error("oauth error", "error", errParam, "description", errDesc)
 		http.Error(w, fmt.Sprintf("OAuth error: %s - %s", errParam, errDesc), http.StatusBadRequest)
 		return
 	}
@@ -328,13 +328,13 @@ func (h *AuthHandler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 	// Validate state parameter
 	state := r.URL.Query().Get("state")
 	if state == "" {
-		log.Printf("Missing state parameter")
+		slog.Warn("missing state parameter")
 		http.Error(w, "Missing state parameter", http.StatusBadRequest)
 		return
 	}
 
 	if !h.validateState(state) {
-		log.Printf("Invalid or expired state parameter")
+		slog.Warn("invalid or expired state parameter")
 		http.Error(w, "Invalid or expired state parameter", http.StatusBadRequest)
 		return
 	}
@@ -342,7 +342,7 @@ func (h *AuthHandler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 	// Get authorization code
 	code := r.URL.Query().Get("code")
 	if code == "" {
-		log.Printf("Missing authorization code")
+		slog.Warn("missing authorization code")
 		http.Error(w, "Missing authorization code", http.StatusBadRequest)
 		return
 	}
@@ -350,7 +350,7 @@ func (h *AuthHandler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 	// Load OAuth config
 	config, err := h.getOAuthConfig(ctx)
 	if err != nil {
-		log.Printf("Failed to load OAuth config: %v", err)
+		slog.Error("failed to load oauth config", "error", err)
 		http.Error(w, "OAuth configuration error", http.StatusInternalServerError)
 		return
 	}
@@ -358,7 +358,7 @@ func (h *AuthHandler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 	// Exchange authorization code for tokens
 	token, err := config.Exchange(ctx, code)
 	if err != nil {
-		log.Printf("Failed to exchange code for tokens: %v", err)
+		slog.Error("failed to exchange code for tokens", "error", err)
 		http.Error(w, fmt.Sprintf("Failed to exchange code: %v", err), http.StatusBadRequest)
 		return
 	}
@@ -366,17 +366,16 @@ func (h *AuthHandler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 	// Get user email from the token (for logging/storage)
 	userEmail, err := h.getUserEmail(ctx, config, token)
 	if err != nil {
-		log.Printf("Failed to get user email: %v", err)
+		slog.Warn("failed to get user email", "error", err)
 		// Non-fatal, continue without email
 		userEmail = ""
 	}
 
-	log.Printf("OAuth callback successful for user: %s, refresh_token_present=%v",
-		userEmail, token.RefreshToken != "")
+	slog.Info("oauth callback successful", "user_email", userEmail, "refresh_token_present", token.RefreshToken != "")
 
 	// Check if we have a refresh token
 	if token.RefreshToken == "" {
-		log.Printf("Warning: No refresh token received. User may need to revoke access and re-authorize.")
+		slog.Warn("no refresh token received, user may need to revoke access and re-authorize")
 		http.Error(w, "No refresh token received. Please revoke access at https://myaccount.google.com/permissions and try again.", http.StatusBadRequest)
 		return
 	}
@@ -426,8 +425,7 @@ func (h *AuthHandler) serveCallbackResponse(w http.ResponseWriter, r *http.Reque
 	// The MCP client handles the OAuth flow directly via /oauth/authorize.
 	// This endpoint is kept for manual token generation if needed.
 
-	log.Printf("OAuth callback completed for user: %s (refresh_token_present=%v)",
-		userEmail, token.RefreshToken != "")
+	slog.Info("oauth callback completed", "user_email", userEmail, "refresh_token_present", token.RefreshToken != "")
 
 	// Display success message with refresh token info
 	successData := SuccessPageData{
@@ -438,7 +436,7 @@ func (h *AuthHandler) serveCallbackResponse(w http.ResponseWriter, r *http.Reque
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := successPageTemplate.Execute(w, successData); err != nil {
-		log.Printf("Failed to render success template: %v", err)
+		slog.Error("failed to render success template", "error", err)
 		http.Error(w, "Failed to render page", http.StatusInternalServerError)
 	}
 }
@@ -484,7 +482,7 @@ func (h *AuthHandler) HandleSuccess(w http.ResponseWriter, r *http.Request) {
 	// Render template
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := successPageTemplate.Execute(w, data); err != nil {
-		log.Printf("Failed to render success template: %v", err)
+		slog.Error("failed to render success template", "error", err)
 		http.Error(w, "Failed to render page", http.StatusInternalServerError)
 	}
 }

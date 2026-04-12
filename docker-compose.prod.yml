@@ -7,6 +7,11 @@ services:
       - "8080"
     env_file:
       - /app/data/google-contacts/.env
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
     networks:
       - proxy-network
 

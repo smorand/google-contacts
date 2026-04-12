@@ -6,9 +6,11 @@ import (
 	"os"
 
 	"google-contacts/internal/cli"
+	"google-contacts/internal/observability"
 )
 
 func main() {
+	observability.InitLogger(os.Getenv("LOG_LEVEL"))
 	cli.Init()
 
 	if err := cli.RootCmd.Execute(); err != nil {
